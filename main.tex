@@ -3,6 +3,7 @@
 
 \usepackage{graphicx}
 \usepackage[]{subfig}
+\usepackage{svg}
 \graphicspath{{./images/}}
 % \journal{Computational Geometry: Theory and Applications}
 
@@ -31,17 +32,17 @@
 
 
 \title{Browsing large graphs with MSAGLJS, a graph draph drawing tool in JavaScript }
-  \author{%
-  Lev Nachmanson  \and 
+\author{%
+  Lev Nachmanson  \and
   Xiaoji Chen
-  }%
-  \institute{
-    Microsoft Research, US,\\
-  \email{levnach@hotmail.com, cxiaoji@gmail.com},\\ 
+}%
+\institute{
+  Microsoft Research, US,\\
+  \email{levnach@hotmail.com, cxiaoji@gmail.com},\\
   Msagljs github home page:
   \texttt{https://github.com/microsoft/msagljs}
-  }
-  \maketitle      
+}
+\maketitle
 %\ead{levnach@microsoft.com}
 %\address[LN]{Microsoft Research, USA}
 
@@ -49,14 +50,9 @@
 %\address[SP]{Ural Federal University, Russia}
 
 \begin{abstract}
-Recently, there has been progress in visualization of large graphs. Still, interacting with a large graph in the browser with the same ease as browsing an online map, inspecting the high level structure and zooming to the lower details, is still an unsolved problem, in our opinion. 
-
-In this paper we describe MSAGLJS's approach to two aspects of this problem. Firstly, we give a novel algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates optimal paths but is efficient. 
-
-Secondly: To facilitate graph vizualization with DeckGL, namely fast zoom-in, zoom-out, and pan operations, and keepning the number of entities on the screen below a specific bound, we use tiling. We describe the procedure in the paper.
+  There has been progress in visualization of large graphs recently. Still, interacting with a large graph in the browser with the same ease as browsing an online map, inspecting the high level structure and zooming to the lower details, is still an unsolved problem, in our opinion. In this paper we describe MSAGLJS's approach to two aspects of this problem. Firstly, we give a novel algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates optimal paths but is efficient and creates visually appealing paths. Secondly, to facilitate graph vizualization with DeckGL, namely fast zoom-\(in/out\), and pan operations, and keeping the number of entities on the screen below a specific bound, we use tiling. Our tiling procedure is simple and efficient. It is the second contribution of the paper.
 \end{abstract}
 
-\nolinenumbers
 
 
 
@@ -90,13 +86,19 @@ machine learing approach
 
 \section*{Edge routing}
 The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner is built on a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}.
+\begin{figure}[h]
+  \centering
+  \includesvg[width=\textwidth]{visibility_graph.svg}
+  \caption{Spanner graph is build using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the original curves. \\
+    The edge marked by the circles is created because the top vertex is inside of the cone and is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge.}
+\end{figure}
 
-The approach of~\cite{dwyer2010fast}, first builds a polyline on the spanner, and then applies some local modifications to shorten the polyline and to make it smooth. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To make it smooth it inscribed Bezier segment into the polyline corners. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck. 
+The approach of~\cite{dwyer2010fast}, first builds a polyline on the spanner, and then applies some local modifications to shorten the polyline and to make it smooth. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To make it smooth it inscribed Bezier segment into the polyline corners. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck.
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.4\textwidth}
     \includegraphics[width=\textwidth]{./naive_shorcut_now_working.png}
-    
+
     \caption{Unsuccessful shortcut}
   \end{minipage}
   \hfill
@@ -104,17 +106,17 @@ The approach of~\cite{dwyer2010fast}, first builds a polyline on the spanner, an
     \includegraphics[width=\textwidth]{fillet_corner.png}
     \caption{Fitting a Bezier segment into a polyline corner}
   \end{minipage}
-  \caption*{Enefficient local improvements}  
+  \caption*{Inefficient local improvements}
 \end{figure}
 
-\label{fig:shortcut}  
+\label{fig:shortcut}
 
-The reason for this was that we queured if a lines is intersected with the whole graph. Even by optimizing this operations by using R-Trees~\cite{guttman1984r}, we saw that about \%90 of the edge routing running time was spent on these heuristics. Another shortcoming of this approach was that in the case when the heuristics did not work the paths remained not appealing visually. 
+The reason for this was that we queured if a lines intersects any entity of the graph. Even by optimizing this operations by using R-Trees~\cite{guttman1984r}, we saw that about \%90 of the edge routing running time was spent on these heuristics. Another disadvantage of the naive shortcutting of polyline corners is that often in the case of the failure, when a shortcut is not found, the resulting path is not visually appealing.
 
 
 \comm{
-\section{Further Examples}
+  \section{Further Examples}
 }
-\bibliography{main} 
+\bibliography{main}
 \bibliographystyle{ieeetr}
 \end{document}
