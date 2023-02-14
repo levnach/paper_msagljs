@@ -91,7 +91,7 @@ machine learing approach
 \section*{Edge routing}
 The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner is built on a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}.
 
-The approach of~\cite{dwyer2010fast} when routing a path first builds a polyline and then applies some local modifications to shorten the polyline and to make it smooth. To shorten the polyline it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut} , and to make it smooth it inscribes Bezier segment into the polyline cornerners, and discarding the cornerns. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck. 
+The approach of~\cite{dwyer2010fast}, first builds a polyline on the spanner, and then applies some local modifications to shorten the polyline and to make it smooth. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To make it smooth it inscribed Bezier segment into the polyline corners. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck. 
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.4\textwidth}
@@ -102,14 +102,14 @@ The approach of~\cite{dwyer2010fast} when routing a path first builds a polyline
   \hfill
   \begin{minipage}[b]{0.4\textwidth}
     \includegraphics[width=\textwidth]{fillet_corner.png}
-    \caption{Fitting a Bezier segment into a corner}
+    \caption{Fitting a Bezier segment into a polyline corner}
   \end{minipage}
   \caption*{Enefficient local improvements}  
 \end{figure}
 
 \label{fig:shortcut}  
 
-The reason for this was that we queured if a lines is intersected with the whole graph. Even by optimizing this operations by using R-Trees~\cite{guttman1984r}, we saw that about \%90 of the edge routing running time was spent on these heuristics. Another shortcoming of this approach was that in the case when the heuristics did not work the paths remain not appealing visually. 
+The reason for this was that we queured if a lines is intersected with the whole graph. Even by optimizing this operations by using R-Trees~\cite{guttman1984r}, we saw that about \%90 of the edge routing running time was spent on these heuristics. Another shortcoming of this approach was that in the case when the heuristics did not work the paths remained not appealing visually. 
 
 
 \comm{
