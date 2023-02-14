@@ -4,6 +4,7 @@
 \usepackage{graphicx}
 \usepackage[]{subfig}
 \usepackage{svg}
+\usepackage[]{pdfpages}
 \graphicspath{{./images/}}
 % \journal{Computational Geometry: Theory and Applications}
 
@@ -85,13 +86,26 @@ machine learing approach
 \cite{cosmograph}
 
 \section*{Edge routing}
-The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner is built on a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}.
-\begin{figure}[h]
+The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner, see Fig.~\ref{fig:spanner}, is built on a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. A Yao graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number. This way the cones with the apex at a specific vertex partition the plane as illistrated in as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is selected connecting the cone apex with a vertex inside of the cone.
+
+\begin{figure}[]
   \centering
-  \includesvg[width=\textwidth]{visibility_graph.svg}
-  \caption{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the original curves. \\
-    The edge marked by the circles is created because the top vertex is inside of the cone and is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge.}
+  \begin{minipage}[b]{0.5\textwidth}
+    \includegraphics[width=\textwidth]{yao.pdf}
+    \caption{\small{Fragment of a Yao graph}}
+    \label{fig:yao}
+  \end{minipage}
+
+  \vfill
+  \begin{minipage}[b]{\textwidth}
+    \includesvg[width=\textwidth]{visibility_graph.svg}
+    \caption{\small{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the original curves. \\
+        The edge marked by the circles is created because the top vertex is inside of the cone and is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$. This gives paths with lengths not that are not greater than the optimal length divided by $\cos(\frac{\pi}{12})$}}
+    \label{fig:spanner}
+  \end{minipage}
+
 \end{figure}
+
 
 The approach of~\cite{dwyer2010fast}, first builds a polyline on the spanner, and then applies some local modifications to shorten the polyline and to make it smooth. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To make it smooth it inscribed Bezier segment into the polyline corners. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck.
 \begin{figure}[!tbp]
