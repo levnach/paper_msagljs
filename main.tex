@@ -1,0 +1,120 @@
+\documentclass{gd-llncs}
+%\documentclass[preprint,3p,12pt]{elsarticle}
+
+\usepackage{graphicx}
+\usepackage[]{subfig}
+\graphicspath{{./images/}}
+% \journal{Computational Geometry: Theory and Applications}
+
+%\newtheorem{theorem}{Theorem}
+%\newtheorem{problem}{Problem}
+%\newtheorem{lemma}{Lemma}
+%\newtheorem{proposition}{Proposition}
+%\newenvironment{proof}{\noindent \emph{Proof}: }{\qed}
+
+\newcommand{\comm}[1]{}
+\newcommand{\TODO}[1]{{\color{magenta}{#1}}}
+\newcommand{\new}[1]{\textcolor{green}{#1}}
+%\newcommand{\note}[1]{\textcolor{blue}{[#1]}}
+
+\newcommand{\df}[1]{\mbox{\textbf{#1}}}
+\def\Cost{\text{\emph{routing cost}}}
+\def\aCost{\text{\emph{additional cost}}}
+\newcommand{\gv}{\widetilde{G}}
+\newcommand{\ink}{I}
+\newcommand{\cc}{C}
+\newcommand{\inkcoeff}{k_{\textit{ink}}}
+\newcommand{\lencoeff}{k_{\textit{len}}}
+\newcommand{\capcoeff}{k_{\textit{cap}}}
+\DeclareMathOperator{\nul}{\textit{null}}
+\begin{document}
+
+
+\title{Browsing large graphs with MSAGLJS, a graph draph drawing tool in JavaScript }
+  \author{%
+  Lev Nachmanson  \and 
+  Xiaoji Chen
+  }%
+  \institute{
+    Microsoft Research, US,\\
+  \email{levnach@hotmail.com, cxiaoji@gmail.com},\\ 
+  Msagljs github home page:
+  \texttt{https://github.com/microsoft/msagljs}
+  }
+  \maketitle      
+%\ead{levnach@microsoft.com}
+%\address[LN]{Microsoft Research, USA}
+
+%\ead{spupyrev@gmail.com}
+%\address[SP]{Ural Federal University, Russia}
+
+\begin{abstract}
+Recently, there has been progress in visualization of large graphs. Still, interacting with a large graph in the browser with the same ease as browsing an online map, inspecting the high level structure and zooming to the lower details, is still an unsolved problem, in our opinion. 
+
+In this paper we describe MSAGLJS's approach to two aspects of this problem. Firstly, we give a novel algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates optimal paths but is efficient. 
+
+Secondly: To facilitate graph vizualization with DeckGL, namely fast zoom-in, zoom-out, and pan operations, and keepning the number of entities on the screen below a specific bound, we use tiling. We describe the procedure in the paper.
+\end{abstract}
+
+\nolinenumbers
+
+
+
+
+
+\section*{Introduction}
+
+\label{sec:intro}
+\section*{Related work}
+Links to large graph visualization
+
+
+\cite{graphexp}
+
+\cite{graphviz}
+
+\cite{regraph}
+
+\cite{skewed}
+
+\cite{circos}
+
+\cite{gibson2013survey}
+
+machine learing approach
+\cite{kwon2017would}
+
+\cite{lin2013interactive}
+
+\cite{cosmograph}
+
+\section*{Edge routing}
+The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner is built on a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}.
+
+The approach of~\cite{dwyer2010fast} when routing a path first builds a polyline and then applies some local modifications to shorten the polyline and to make it smooth. To shorten the polyline it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut} , and to make it smooth it inscribes Bezier segment into the polyline cornerners, and discarding the cornerns. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck. 
+\begin{figure}[!tbp]
+  \centering
+  \begin{minipage}[b]{0.4\textwidth}
+    \includegraphics[width=\textwidth]{./naive_shorcut_now_working.png}
+    
+    \caption{Unsuccessful shortcut}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[b]{0.4\textwidth}
+    \includegraphics[width=\textwidth]{fillet_corner.png}
+    \caption{Fitting a Bezier segment into a corner}
+  \end{minipage}
+  \caption*{Enefficient local improvements}  
+\end{figure}
+
+\label{fig:shortcut}  
+
+The reason for this was that we queured if a lines is intersected with the whole graph. Even by optimizing this operations by using R-Trees~\cite{guttman1984r}, we saw that about \%90 of the edge routing running time was spent on these heuristics. Another shortcoming of this approach was that in the case when the heuristics did not work the paths remain not appealing visually. 
+
+
+\comm{
+\section{Further Examples}
+}
+\bibliography{main} 
+\bibliographystyle{ieeetr}
+\end{document}
