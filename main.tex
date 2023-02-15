@@ -5,6 +5,7 @@
 \usepackage[]{subfig}
 \usepackage{svg}
 \usepackage[]{pdfpages}
+\usepackage[]{svg}
 
 \graphicspath{{./images/}}
 % \journal{Computational Geometry: Theory and Applications}
@@ -30,6 +31,11 @@
 \newcommand{\lencoeff}{k_{\textit{len}}}
 \newcommand{\capcoeff}{k_{\textit{cap}}}
 \DeclareMathOperator{\nul}{\textit{null}}
+\newcommand{\cdt}{$\mathcal{T}$}
+\newcommand{\unpath}{$\mathcal{L}$}
+\newcommand{\triset}{$\mathcal{U}$}
+\newcommand{\plg}{$\mathcal{P}$}
+
 \begin{document}
 
 
@@ -89,7 +95,7 @@ The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph
   \centering
   \begin{minipage}[b]{0.5\textwidth}
     \includegraphics[width=\textwidth]{yao.pdf}
-    \caption{\small{Fragment of a Yao graph}}
+    \caption{\small{Yao graph}}
     \label{fig:yao}
   \end{minipage}
 
@@ -125,9 +131,30 @@ The approach of~\cite{dwyer2010fast} first builds a polyline path through the sp
 
 The reason for this was that we queured if a curve intersects any node of the whole graph. In spite of optimizing these operations with R-Trees~\cite{guttman1984r}, about \%90 of the edge routing running time was spent on them. In addition, when the naive shortcutting of polyline corners fails the resulting path is not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 
-We replace global inefficent calculatitons with local procedures.
+We replace global inefficent calculatitons with faster local procedures.
 \subsection*{Local path optimization} {
-  The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. In section $3.1$ there they write: "If $\mathcal{P}$ does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon".
+  The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". Let us describe our approch.
+
+  We call obstacles $\mathcal{O}$ the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.\\
+  We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}. Let us call this path \unpath. We would like to find a polygon, \plg, containing \unpath~ and suitable to apply the funnel algorithm mentioned above.
+  \begin{figure}[!tbp]
+    \centering
+    \begin{minipage}[b]{\textwidth}
+      \includesvg[width=\textwidth]{non_optimized_path_on_global_cdt.svg}
+      \caption{Unoptimized path \unpath~with triangulation \cdt, a fragment.}
+      \label{fig:non_opt_path_L}
+    \end{minipage}
+    \vfill
+    \begin{minipage}[b]{\textwidth}
+      \includesvg[width=\textwidth]{polygon_with_path.svg}
+      \caption{Polygon \plg~containing \unpath.}
+      \label{fig:polygon_with_path}
+    \end{minipage}
+  \end{figure}
+  To obtain \plg, let us consider \triset~, the set of all triangles from \cdt~intersecting \unpath, and residing either outside of obstacles or inside on an obstacle containing one of the path ends, see Fig.~\ref{fig:polygon_with_path}.
+  The union of \triset~gives us \plg, and its boundary can is the set of all edges of \triset~ that adjacent to only one of triangles from \triset.
+
+
 }
 
 \comm{
