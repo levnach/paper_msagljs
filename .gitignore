@@ -25,7 +25,7 @@
 *.pdf
 *.pdf_tex
 !main.pdf
-!images/yao.pdf
+!images/*
 ## Bibliography auxiliary files (bibtex/biblatex/biber):
 *.bbl
 *.bcf

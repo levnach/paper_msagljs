@@ -83,7 +83,7 @@ machine learing approach
 \cite{cosmograph}
 
 \section*{Edge routing}
-The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner, see Fig.~\ref{fig:spanner}, is built on a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. A Yao graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number. This way the cones with the apex at a specific vertex partition the plane as illistrated in as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is selected connecting the cone apex with a vertex inside of the cone.
+The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner, see Fig.~\ref{fig:spanner}, is built on a variation of a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. A Yao graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number. This way the cones with the apex at a specific vertex partition the plane as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is created connecting the cone apex with a vertex inside of the cone.
 
 \begin{figure}[]
   \centering
@@ -97,19 +97,18 @@ The edge routing starts as in~\cite{dwyer2010fast}, by building a spanner graph,
   \begin{minipage}[b]{\textwidth}
     \includesvg[width=\textwidth]{visibility_graph.svg}
     \caption{\small{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the former. \\
-        The edge marked by the circles is created because the top vertex is inside of the cone and is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$. This gives paths with lengths not that are not greater than the optimal length divided by $\cos(\frac{\pi}{12})$}}
+        The edge marked by the circles is created because the top vertex is inside of the cone and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$. This gives a path of length that is not greater than the shortest length divided by $\cos(\frac{\pi}{12}) \simeq 0.9659$.}  }
     \label{fig:spanner}
   \end{minipage}
 
 \end{figure}
 
 
-The approach of~\cite{dwyer2010fast} first builds a polyline path through the spanner, and then applies some local modifications to shorten the path and to make it smooth. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To make it smooth it fits Bezier segment into the polyline corners, using the binary search to find the larger fitting segments,see Fig~\ref{fig:cornerfit}. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck.
+The approach of~\cite{dwyer2010fast} first builds a polyline path through the spanner, and then applies some local modifications to shorten and smoothen the path. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To smoothen it fits Bezier segment into the polyline corners, using the binary search to find the larger fitting segments,see Fig~\ref{fig:cornerfit}. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck.
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.4\textwidth}
     \includegraphics[width=\textwidth]{./naive_shorcut_now_working.png}
-
     \caption{Unsuccessful shortcut}
     \label{fig:shortcut}
   \end{minipage}
@@ -124,7 +123,8 @@ The approach of~\cite{dwyer2010fast} first builds a polyline path through the sp
 
 
 
-The reason for this was that we queured if a curve intersects any node of the graph. In spite of optimizing these operations with R-Trees~\cite{guttman1984r} about \%90 of the edge routing running time was spent on them. In addition, when the naive shortcutting of polyline corners fails the resulting path is not visually appealing as shown in Fig.~\ref{fig:shortcut}.
+The reason for this was that we queured if a curve intersects any node of the whole graph. In spite of optimizing these operations with R-Trees~\cite{guttman1984r}, about \%90 of the edge routing running time was spent on them. In addition, when the naive shortcutting of polyline corners fails the resulting path is not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
+
 
 
 \comm{
