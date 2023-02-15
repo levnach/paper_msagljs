@@ -97,7 +97,9 @@ The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph
   \begin{minipage}[b]{\textwidth}
     \includesvg[width=\textwidth]{visibility_graph.svg}
     \caption{\small{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the former. \\
-        The edge marked by the circles is created because the top vertex is inside of the cone and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$. This gives a path of length that is not greater than the shortest length divided by $\cos(\frac{\pi}{12}) \simeq 0.9659$.}  }
+      The edge marked by the circles is created because the top vertex is inside of the cone and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}.
+        {6}}) \simeq 1.155$.}
+    }
     \label{fig:spanner}
   \end{minipage}
 
@@ -121,11 +123,12 @@ The approach of~\cite{dwyer2010fast} first builds a polyline path through the sp
 
 \end{figure}
 
-
-
 The reason for this was that we queured if a curve intersects any node of the whole graph. In spite of optimizing these operations with R-Trees~\cite{guttman1984r}, about \%90 of the edge routing running time was spent on them. In addition, when the naive shortcutting of polyline corners fails the resulting path is not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 
-
+We replace global inefficent calculatitons with local procedures.
+\subsection*{Local path optimization} {
+  The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. In section $3.1$ there they write: "If $\mathcal{P}$ does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon".
+}
 
 \comm{
   \section{Further Examples}
