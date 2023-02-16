@@ -133,29 +133,54 @@ The reason for this was that we queured if a curve intersects any node of the wh
 
 We replace global inefficent calculatitons with faster local procedures.
 \subsection*{Local path optimization} {
-  The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". Let us describe our approch.
+The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". Let us describe our approch.
 
-  We call obstacles $\mathcal{O}$ the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.\\
-  We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}. Let us call this path \unpath. We would like to find a polygon, \plg, containing \unpath~ and suitable to apply the funnel algorithm mentioned above.
-  \begin{figure}[!tbp]
-    \centering
-    \begin{minipage}[b]{\textwidth}
-      \includesvg[width=\textwidth]{non_optimized_path_on_global_cdt.svg}
-      \caption{Unoptimized path \unpath~with triangulation \cdt, a fragment.}
-      \label{fig:non_opt_path_L}
-    \end{minipage}
-    \vfill
-    \begin{minipage}[b]{\textwidth}
-      \includesvg[width=\textwidth]{polygon_with_path.svg}
-      \caption{Polygon \plg~containing \unpath.}
-      \label{fig:polygon_with_path}
-    \end{minipage}
-  \end{figure}
-  To obtain \plg, let us consider \triset~, the set of all triangles from \cdt~intersecting \unpath, and residing either outside of obstacles or inside on an obstacle containing one of the path ends, see Fig.~\ref{fig:polygon_with_path}.
-  The union of \triset~gives us \plg, and its boundary can is the set of all edges of \triset~ that adjacent to only one of triangles from \triset.
+We call obstacles $\mathcal{O}$ the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.\\
+We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}. Let us call this path \unpath. We are going to find a polygon \plg~ containing \unpath~ and suitable to apply the funnel algorithm mentioned above.\\
+\begin{figure}[!tbp]
+  \centering
+  \begin{minipage}[b]{0.45\textwidth}
+    \includesvg[width=\textwidth]{non_optimized_path_on_global_cdt.svg}
+    \caption{Path \unpath~with \cdt, a fragment.}
+    \label{fig:non_opt_path_L}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[b]{0.45\textwidth}
+    \includesvg[width=\textwidth]{poly2.svg}
+    \caption{Polygon \plg~containing \unpath.}
+    \label{fig:polygon_with_path}
+  \end{minipage}
+  \vfill
+  \begin{minipage}[b]{0.45\textwidth}
+    \includesvg[width=\textwidth]{poly3.svg}
+    \caption{New triangulation of \plg.}
+    \label{fig:new_triangulation}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[b]{0.45\textwidth}
+    \includesvg[width=\textwidth]{poly4.svg}
+    \caption{Optimized path.}
+    \label{fig:optimized_path}
+  \end{minipage}
+\end{figure}
+Let $\mathcal{S}$ be the obstacle containing \unpath's start point, and $\mathcal{E}$ be the obstacle containing \unpath's end point.
+To obtain \plg, let us consider \triset~, the set of all triangles ${t} \in \mathcal{T}$ such that
+either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~ and is not inside of any obstacle.
+The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
+To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. If \triset~ has this property we use it, otherwise we create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
+Finally, we apply the funnel algorithm to obtain the path which is the shortest in the homotopy class of \unpath, see Fig.~\ref{fig:optimized_path}.\\
+
+\begin{figure}[]
+  \centering
+  \includegraphics*[width=0.5\textwidth]{sleeve_diagonals_not_optimal.pdf}
+  \caption{\plg~is not simple, and the dotted path is shorter than the dashed one.}
+  \label{fig:non_optimal_path}
+\end{figure}
 
 
-}
+The polygon \plg~is not neccesserely simple, as shown in Fig.~\ref{fig:non_optimal_path}.
+Here we also have an example when the path that we calculate with the funnel is not neccesserely the shortest path between the obstacles.
+
 
 \comm{
   \section{Further Examples}
