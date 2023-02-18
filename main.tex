@@ -35,7 +35,7 @@
 \newcommand{\unpath}{$\mathcal{L}$}
 \newcommand{\triset}{$\mathcal{U}$}
 \newcommand{\plg}{$\mathcal{P}$}
-
+\newcommand{\obst}{$\mathcal{O}$}
 \begin{document}
 
 
@@ -133,10 +133,14 @@ The reason for this was that we queured if a curve intersects any node of the wh
 
 We replace global inefficent calculatitons with faster local procedures.
 \subsection*{Local path optimization} {
-The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". Let us describe our approch.
+The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon".
+We build polygon \plg~ containing \unpath~ that is suitable for the funnel algorithm application mentioned above. Our method works for any layout. Let us describe it.
 
-We call obstacles $\mathcal{O}$ the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.\\
-We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}. Let us call this path \unpath. We are going to find a polygon \plg~ containing \unpath~ and suitable to apply the funnel algorithm mentioned above.\\
+We call obstacles $\mathcal{O}$~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.
+
+We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}. Let us call this path \unpath.
+
+
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.45\textwidth}
@@ -167,20 +171,72 @@ Let $\mathcal{S}$ be the obstacle containing \unpath's start point, and $\mathca
 To obtain \plg, let us consider \triset~, the set of all triangles ${t} \in \mathcal{T}$ such that
 either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~ and is not inside of any obstacle.
 The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
-To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. If \triset~ has this property we use it, otherwise we create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
+To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. In our situation \triset~ does not have this property, containing triangles with vertices at the centers of $\mathcal{S}$ and $\mathcal{E}$. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
 Finally, we apply the funnel algorithm to obtain the path which is the shortest in the homotopy class of \unpath, see Fig.~\ref{fig:optimized_path}.\\
 
 \begin{figure}[]
   \centering
   \includegraphics*[width=0.5\textwidth]{sleeve_diagonals_not_optimal.pdf}
-  \caption{\plg~is not simple, and the dotted path is shorter than the dashed one.}
+  \caption{\plg~is not simple polygon. The dotted path is shorter than the dashed one, that was found be the routing.}
   \label{fig:non_optimal_path}
 \end{figure}
 
 
 The polygon \plg~is not neccesserely simple, as shown in Fig.~\ref{fig:non_optimal_path}.
-Here we also have an example when the path that we calculate with the funnel is not neccesserely the shortest path between the obstacles.
+In this example the path that we calculate with the funnel algorithm is not the shortest path inside of \plg.
+\subsection*{Performance comparison}
+% new results\\
+% % % driver.ts:172 loading graph gameofthrones.json with 407 nodes, and 2639 edges
+% % % driver.ts:197 layout: 700.746826171875 ms
+% % % driver.ts:203 routing: 1291.155029296875 ms
+% % % \\
+% % % loading graph b100.gv with 1463 nodes, and 5806 edges
+% % % driver.ts:197 layout: 4445.96484375 ms
+% % % driver.ts:203 routing: 5785.367919921875 ms
+% \\
+% loading graph composers.json with 3405 nodes, and 13832 edges
+% driver.ts:197 layout: 1435.905029296875 ms
+% driver.ts:203 routing: 20060.42578125 ms
+% \\
+% loading graph p2p-Gnutella04.JSON with 10876 nodes, and 39994 edges
+% driver.ts:197 layout: 8258.957275390625 ms
+% driver.ts:203 routing: 315084.2478027344 m\\
+% --------------------------\\
+% old results
+% loading graph gameofthrones.json with 407 nodes, and 2639 edges
+% driver.ts:197 layout: 746.14013671875 ms
+% driver.ts:203 routing: 1001.654052734375 ms
+% \\
+% loading graph b100.gv with 1463 nodes, and 5806 edges
+% driver.ts:197 layout: 4286.7490234375 ms
+% driver.ts:203 routing: 5607.820068359375 ms
+% \\
+% \\
+% loading graph composers.json with 3405 nodes, and 13832 edges
+% driver.ts:197 layout: 1744.442138671875 ms
+% driver.ts:203 routing: 510510.5849609375 ms
+% \\
+% loading graph p2p-Gnutella04.JSON with 10876 nodes, and 39994 edges
+% driver.ts:197 layout: 7869.53076171875 ms
+% driver.ts:203 routing: 375416.2248535156 ms
+In Table~\ref{tab:perf} the time is presented in seconds.
+\begin{center}
+  \begin{tabular}{||c |c| c| c| c||}
+    \hline
+    graph name     & nodes & edges & old  time & new time \\ [0.5ex]
+    \hline\hline
+    social network & 407   & 2639  & 1.0       & 1.4      \\
+    \hline
+    b100           & 1463  & 5806  & 5.6       & 5.785    \\
+    \hline
+    composers      & 3405  & 13832 & 510.5     & 17.5     \\
+    \hline
+    p2p-Gnutella04 & 10876 & 39994 & 375.4     & 293.8    \\ [1ex]
+    \hline
+  \end{tabular}
 
+  \label{tab:perf}
+\end{center}
 
 \comm{
   \section{Further Examples}
