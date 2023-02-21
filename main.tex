@@ -58,7 +58,9 @@
 %\address[SP]{Ural Federal University, Russia}
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. Still, interacting with a large graph in the browser with the same ease as browsing an online map, inspecting the high level structure and zooming to the lower details, is still an unsolved problem, in our opinion. In this paper we describe MSAGLJS's approach to two aspects of this problem. Firstly, we give a novel algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates optimal paths but is efficient and creates visually appealing paths. Secondly, to facilitate graph vizualization with DeckGL, namely fast zoom, and pan operations, and keeping the number of entities on the screen below a specific bound all the time, we use tiling. Our tiling procedure is simple and efficient. It is the second contribution of the paper.
+  There has been progress in visualization of large graphs recently. Still, interacting with a large graph in the browser with the same ease as browsing an online map, inspecting the high level structure and zooming to the lower details, is still an unsolved problem, in our opinion. In this paper we describe MSAGLJS's approach to two aspects of this problem. Firstly, we give a novel algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates optimal paths but is efficient and creates visually appealing paths.
+
+  Secondly, to facilitate graph vizualization with DeckGL, we propose a new simple and efficient approach to tiling. The approch guarantees that in every view the number of visible entities is not larger than a predefined bound.
 \end{abstract}
 
 
@@ -176,7 +178,7 @@ Finally, we apply the funnel algorithm to obtain the path which is the shortest 
 
 \begin{figure}[]
   \centering
-  \includegraphics*[width=0.5\textwidth]{sleeve_diagonals_not_optimal.pdf}
+  \includegraphics*[]{sleeve_diagonals_not_optimal.pdf}
   \caption{\plg~is not simple polygon. The dotted path is shorter than the dashed one, that was found be the routing.}
   \label{fig:non_optimal_path}
 \end{figure}
@@ -184,7 +186,15 @@ Finally, we apply the funnel algorithm to obtain the path which is the shortest 
 
 The polygon \plg~is not neccesserely simple, as shown in Fig.~\ref{fig:non_optimal_path}.
 In this example the path that we calculate with the funnel algorithm is not the shortest path inside of \plg.
-\subsection*{Performance comparison}
+\subsection*{Performance and quality comparison}
+In Fig.~\ref{fig:improved_routing} we show that the path quality is better with the new method. The paths are shorter and they have no kinks.
+\begin{figure}[]
+  \centering
+  \includegraphics*[width=0.5\textwidth]{comparison.png}
+  \caption{The difference in quality between the old and the new edge routing. The arrows point to the kinks that were removed by the new method.}
+  \label{fig:improved_routing}
+\end{figure}
+
 % new results\\
 % % % driver.ts:172 loading graph gameofthrones.json with 407 nodes, and 2639 edges
 % % % driver.ts:197 layout: 700.746826171875 ms
@@ -219,19 +229,53 @@ In this example the path that we calculate with the funnel algorithm is not the 
 % loading graph p2p-Gnutella04.JSON with 10876 nodes, and 39994 edges
 % driver.ts:197 layout: 7869.53076171875 ms
 % driver.ts:203 routing: 375416.2248535156 ms
+% new loading graph facebook_combined.txt with 4039 nodes, and 88234 edges
+% driver.ts:172
+% layout: 3192.4921875 ms
+% driver.ts:197
+% routing: 119058.66088867188 ms
+% old loading graph facebook_combined.txt with 4039 nodes, and 88234 edges
+% driver.ts:172
+% layout: 3207.157958984375 ms
+% driver.ts:197
+% routing: 132194.51196289062 ms
+
+% new loading graph lastfm_asia_edges.csv with 7626 nodes, and 27807 edges
+% driver.ts:197 layout: 4256.56982421875 ms
+% driver.ts:203 routing: 41438.64208984375 ms
+
+% old loading graph lastfm_asia_edges.csv with 7626 nodes, and 27807 edges
+% driver.ts:172
+% layout: 4343.10498046875 ms
+% driver.ts:197
+% routing: 43277.473876953125 ms
+
+% new loading graph deezer_europe_edges.csv with 28283 nodes, and 92753 edges
+% driver.ts:197 layout: 30625.172119140625 ms
+% driver.ts:203 routing: 1209277.4853515625 ms
+%  old loading graph deezer_europe_edges.csv with 28283 nodes, and 92753 edges
+%  driver.ts:197 layout: 20907.59521484375 ms
+% driver.ts:203 routing: 1606911.0739746094 ms
+The older approach outperforms the new method on smaller graphs.
 In Table~\ref{tab:perf} the time is presented in seconds.
 \begin{center}
   \begin{tabular}{||c |c| c| c| c||}
     \hline
-    graph name     & nodes & edges & old  time & new time \\ [0.5ex]
+    graph name            & nodes & edges & old  time & new time \\ [0.5ex]
     \hline\hline
-    social network & 407   & 2639  & 1.0       & 1.4      \\
+    social network        & 407   & 2639  & 1.0       & 1.4      \\
     \hline
-    b100           & 1463  & 5806  & 5.6       & 5.785    \\
+    b100                  & 1463  & 5806  & 5.6       & 5.785    \\
     \hline
-    composers      & 3405  & 13832 & 510.5     & 17.5     \\
+    composers             & 3405  & 13832 & 510.5     & 17.5     \\
     \hline
-    p2p-Gnutella04 & 10876 & 39994 & 375.4     & 293.8    \\ [1ex]
+    p2p-Gnutella04        & 10876 & 39994 & 375.4     & 293.8    \\
+    \hline
+    facebook\_combined    & 4039  & 88234 & 132.2     & 119.1    \\
+    \hline
+    lastfm\_asia\_edges   & 7626  & 27807 & 43.3      & 41.4     \\
+    \hline
+    deezer\_europe\_edges & 28283 & 92753 & 1596.9    & 1209.3   \\
     \hline
   \end{tabular}
 
