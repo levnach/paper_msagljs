@@ -114,7 +114,7 @@ The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph
 \end{figure}
 
 
-The approach of~\cite{dwyer2010fast} first builds a polyline path through the spanner, and then applies some local modifications to shorten and smoothen the path. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To smoothen it fits Bezier segment into the polyline corners, using the binary search to find the larger fitting segments,see Fig~\ref{fig:cornerfit}. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck.
+The approach of~\cite{dwyer2010fast} first builds a polyline path through the spanner, then applies some local modifications to shorten and smoothen the path. For shortening it tries to shortcut a vertex, as illustrated in Fig~\ref{fig:shortcut}. To smoothen it fits Bezier segments into the polyline corners, using the binary search to find the larger fitting segments,see Fig~\ref{fig:cornerfit}. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 10000 edges these heuristics become the major bottleneck.
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.4\textwidth}
@@ -133,10 +133,11 @@ The approach of~\cite{dwyer2010fast} first builds a polyline path through the sp
 
 The reason for this was that we queured if a curve intersects any node of the whole graph. In spite of optimizing these operations with R-Trees~\cite{guttman1984r}, about \%90 of the edge routing running time was spent on them. In addition, when the naive shortcutting of polyline corners fails the resulting path is not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 
-We replace global inefficent calculatitons with faster local procedures.
-\subsection*{Local path optimization} {
-The idea of using a local optimization for paths is not a new one. The authors of~\cite{dobkin1997implementing} used it for hierarchical layouts, where the polygon containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon".
-We build polygon \plg~ containing \unpath~ that is suitable for the funnel algorithm application mentioned above. Our method works for any layout. Let us describe it.
+We replace these heuristics with a more precize optimization.
+\subsection*{Path optimization} {
+The idea of using the path in a simple polygon optimization is not a new one. The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". In general case, for a non-layered layout, they build the visibility graph which is very expensive.
+
+Here we show how to build polygon \plg, and create a better path for any layout. Let us describe our method.
 
 We call obstacles $\mathcal{O}$~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.
 
@@ -173,7 +174,7 @@ Let $\mathcal{S}$ be the obstacle containing \unpath's start point, and $\mathca
 To obtain \plg, let us consider \triset~, the set of all triangles ${t} \in \mathcal{T}$ such that
 either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~ and is not inside of any obstacle.
 The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
-To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. In our situation \triset~ does not have this property, containing triangles with vertices at the centers of $\mathcal{S}$ and $\mathcal{E}$. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
+To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. In our situation \triset~ usually does not have this property. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
 Finally, we apply the funnel algorithm to obtain the path which is the shortest in the homotopy class of \unpath, see Fig.~\ref{fig:optimized_path}.\\
 
 \begin{figure}[]
@@ -187,7 +188,7 @@ Finally, we apply the funnel algorithm to obtain the path which is the shortest 
 The polygon \plg~is not neccesserely simple, as shown in Fig.~\ref{fig:non_optimal_path}.
 In this example the path that we calculate with the funnel algorithm is not the shortest path inside of \plg.
 \subsection*{Performance and quality comparison}
-In Fig.~\ref{fig:improved_routing} we show that the path quality is better with the new method. The paths are shorter and they have no kinks.
+In Fig.~\ref{fig:improved_routing} we compare the paths generated by the old and the new method. We can see that the paths on the right fragment of the picture have no kinks. We also know that they are shorter. Arguably, the new method produces better paths.
 \begin{figure}[]
   \centering
   \includegraphics*[width=0.5\textwidth]{comparison.png}
@@ -256,32 +257,57 @@ In Fig.~\ref{fig:improved_routing} we show that the path quality is better with 
 %  old loading graph deezer_europe_edges.csv with 28283 nodes, and 92753 edges
 %  driver.ts:197 layout: 20907.59521484375 ms
 % driver.ts:203 routing: 1606911.0739746094 ms
-The older approach outperforms the new method on smaller graphs.
-In Table~\ref{tab:perf} the time is presented in seconds.
-\begin{center}
-  \begin{tabular}{||c |c| c| c| c||}
-    \hline
-    graph name            & nodes & edges & old  time & new time \\ [0.5ex]
-    \hline\hline
-    social network        & 407   & 2639  & 1.0       & 1.4      \\
-    \hline
-    b100                  & 1463  & 5806  & 5.6       & 5.785    \\
-    \hline
-    composers             & 3405  & 13832 & 510.5     & 17.5     \\
-    \hline
-    p2p-Gnutella04        & 10876 & 39994 & 375.4     & 293.8    \\
-    \hline
-    facebook\_combined    & 4039  & 88234 & 132.2     & 119.1    \\
-    \hline
-    lastfm\_asia\_edges   & 7626  & 27807 & 43.3      & 41.4     \\
-    \hline
-    deezer\_europe\_edges & 28283 & 92753 & 1596.9    & 1209.3   \\
-    \hline
-  \end{tabular}
+%new loading graph b103.gv with 944 nodes, and 2438 edges
+% driver.ts:197 layout: 1678.364990234375 ms
+% driver.ts:203 routing: 2005.841796875 ms
 
-  \label{tab:perf}
-\end{center}
+% oading graph b103.gv with 944 nodes, and 2438 edges
+%driver.ts:197 layout: 1652.553955078125 ms
+%driver.ts:203 routing: 1628.798095703125 ms
 
+% new loading graph ca-HepPh.txt with 12008 nodes, and 237010 edges
+% driver.ts:197 layout: 12165.052001953125 ms
+% driver.ts:203 routing: 494965.1198730469 ms
+% old loading graph ca-HepPh.txt with 12008 nodes, and 237010 edges
+% driver.ts:197 layout: 10407.01513671875 ms
+% driver.ts:203 routing: 521223.0046386719 ms
+
+Our experiments are summarized in Table.~\ref{tab:perf}. We see that the older approach outperforms the new one on the smaller graphs; those with the number of nodes under 2000. The new method is faster on the rest of the graphs. We still prefer to use the new method independently of the graph size since the total slowdown in insignificant, under a half second in our experiments, but the quality of the paths is better. On the larger graphs the new method runs faster and produces better paths, so it is an obvious choice.
+\begin{table}
+  \begin{center}
+    \begin{tabular}{||c |c| c| c| c||}
+      \hline
+      graph name            & nodes & edges  & old method's time & new time \\ [0.5ex]
+      \hline\hline
+      social network        & 407   & 2639   & 1.0               & 1.4      \\
+      \hline
+      b103                  & 944   & 2438   & 1.6               & 2.0      \\
+      \hline
+      b100                  & 1463  & 5806   & 5.6               & 5.785    \\
+      \hline
+      composers             & 3405  & 13832  & 510.5             & 17.5     \\
+      \hline
+      p2p-Gnutella04        & 10876 & 39994  & 375.4             & 293.8    \\
+      \hline
+      facebook\_combined    & 4039  & 88234  & 132.2             & 119.1    \\
+      \hline
+      lastfm\_asia\_edges   & 7626  & 27807  & 43.3              & 41.4     \\
+      \hline
+      deezer\_europe\_edges & 28283 & 92753  & 1596.9            & 1209.3   \\
+      \hline
+      ca-HepPh              & 12008 & 237010 & 521.2             & 495.0    \\
+      \hline
+      % driver.ts:197 layout: 12165.052001953125 ms
+      % driver.ts:203 routing: 494965.1198730469 ms
+      % old loading graph ca-HepPh.txt with 12008 nodes, and 237010 edges
+      % driver.ts:197 layout: 10407.01513671875 ms
+      % driver.ts:203 routing: 521223.0046386719 ms
+    \end{tabular}
+    \caption{Performance comparison. The time is in seconds.}
+    \label{tab:perf}
+  \end{center}
+
+\end{table}
 \comm{
   \section{Further Examples}
 }
