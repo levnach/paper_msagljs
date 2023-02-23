@@ -131,13 +131,13 @@ We replace these heuristics with a more precize optimization.
 \subsection*{Path optimization} {
 Remember that a simple polygon is a polygon without holes.
 
-The application of the 'path in a simple polygon' optimization is not a new approach. The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". In general case, for a non-layered layout, they build the visibility graph which is very expensive.
+An application of the 'path in a simple polygon' optimization is not a new approach. The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". In general case, for a non-layered layout, they build the visibility graph which is very expensive.
 
 Here we show how to build polygon \plg, and create a better path, for any layout. Let us describe our method.
 
 We call obstacles $\mathcal{O}$~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.
 
-We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}. Let us call this path \unpath.
+We route a path, called \unpath, on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}.
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.45\textwidth}
@@ -164,11 +164,11 @@ We route a path on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}.
     \label{fig:optimized_path}
   \end{minipage}
 \end{figure}
-Let $\mathcal{S}$ be the obstacle containing \unpath's start point, and $\mathcal{E}$ be the obstacle containing \unpath's end point.
-To obtain \plg, let us consider \triset~, the set of all triangles ${t} \in \mathcal{T}$ such that
-either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~ and is not inside of any obstacle in $O \setminus \{S,E\}$  .
+Let $\mathcal{S}$ and $\mathcal{E}$ be the obstacles containing correspondengly \unpath's start and end point.
+To obtain \plg, let us consider \triset, the set of all triangles ${t} \in \mathcal{T}$ such that
+either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~and is not inside of any obstacle in $O \setminus \{S,E\}$  .
 The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
-To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. In our situation \triset~usually does not have this property. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
+To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. In our setup \triset~might not have this property, as in Fig.~\ref{fig:polygon_with_path}. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
 Finally, we apply the funnel algorithm with the new triangulation and obtain the path which is the shortest in the homotopy class of \unpath, as in Fig.~\ref{fig:optimized_path}.\\
 The discussion~\cite{pathOpt} of the algorithm helped us in the implementation.\\
 \begin{figure}[]
