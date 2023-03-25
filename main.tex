@@ -52,19 +52,16 @@
   \texttt{https://github.com/microsoft/msagljs}
 }
 \maketitle
-%\ead{levnach@microsoft.com}
-%\address[LN]{Microsoft Research, USA}
-
-%\ead{spupyrev@gmail.com}
-%\address[SP]{Ural Federal University, Russia}
 
 \begin{abstract}
   There has been progress in visualization of large graphs recently. However, interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
 
-  We give a new algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates the optimal paths, but is efficient and creates visually appealing routes.
+  We give a new algorithm for edge routing, where the edges do not overlap the nodes. The algorithm  produces edge paths which are visually appealing and optimal in their homothopy class.
 
   To facilitate graph vizualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
+
   Our method provides a high level overview of the graph.
+
   The edge routing algorithm mentioned above is reused at the tiling stage to simplify the paths on the lower levels. In addition, we bundle edges per-tile as an optimization heuristic.
 \end{abstract}
 
