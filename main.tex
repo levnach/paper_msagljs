@@ -59,11 +59,13 @@
 %\address[SP]{Ural Federal University, Russia}
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. Still, interacting with a large graph in the browser, with the same ease as browsing an online map, inspecting the high level structure and zooming to the lower details, is still an unsolved problem. In this paper we describe novel approaches to two aspects of this problem.
+  There has been progress in visualization of large graphs recently. However, interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to two aspects of this problem.
 
   Firstly, we give a new algorithm for edge routing, where the edges do not overlap the nodes. The algorithm does not necesserely creates the optimal paths, but is efficient and creates visually appealing routes.
 
-  Secondly, to facilitate graph vizualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view the number of visible entities is not larger than a predefined bound.
+  Secondly, to facilitate graph vizualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
+  Our method provides a high level overview of the graph.
+  The algorithm mentioned above is reused to simplify the paths on the lower levels. We use edge bundling per-tile that reduces the time needed to calculate the tiles.
 \end{abstract}
 
 
@@ -136,7 +138,8 @@ Remember that a simple polygon is a polygon without holes.
 
 An application of the 'path in a simple polygon' optimization is not a new approach. The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". In general case, for a non-layered layout, they build the visibility graph which is very expensive.
 
-Here we show how to build polygon \plg, and create a better path, for any layout. Let us describe our method.
+Here we drop the requirement that $P$ is simple. Indeed, to run the “funnel” algorithm one only needs a sleeve: a sequence of triangles adjoined on an edge and leading from the start to the end of the path.  We show how to build polygon \plg, create a sleeve, and produce an optimized path, for any layout.
+Let us describe our method.
 
 We call obstacles $\mathcal{O}$~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.
 
@@ -171,8 +174,8 @@ Let $\mathcal{S}$ and $\mathcal{E}$ be the obstacles containing correspondengly 
 To obtain \plg, let us consider \triset, the set of all triangles ${t} \in \mathcal{T}$ such that
 either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~and is not inside of any obstacle in $O \setminus \{S,E\}$  .
 The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
-To apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~ such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. In our setup \triset~might not have this property, as in Fig.~\ref{fig:polygon_with_path}. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
-Finally, we apply the funnel algorithm with the new triangulation and obtain the path which is the shortest in the homotopy class of \unpath, as in Fig.~\ref{fig:optimized_path}.\\
+To create the sleeve~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~such that every edge of the triangulation is either a boundary edge of \plg~, or a diagonal of \plg. In our setup \triset~might not have this property, as in Fig.~\ref{fig:polygon_with_path}. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
+We trace \unpath~through the new triangulation and obtain the sleeve. Finally, we apply the funnel algorithm on the sleeve and obtain the path which is the shortest in the homotopy class of \unpath, as illustrated in Fig.~\ref{fig:optimized_path}.\\
 The discussion~\cite{pathOpt} of the algorithm helped us in the implementation.\\
 \begin{figure}[]
   \centering
@@ -224,20 +227,26 @@ Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that
 
 \end{table}
 \section{Tiling}
-The algorithm works in two phases. The first phase builds more and more detailed levels with smaller tiles until no more tile subdivision is required. Then the phase going from the higher to lower levels starts to finalize the levels.
+The algorithm works in two phases. The first phase builds more and more detailed levels with smaller tiles until no more tile subdivision is required. Then second phase goes from the higher to lower levels and finalizes the levels.
 
 
-A tile maybe thought of as a rectangle associated with some data. To form a tile hierarchy we code each tile by a triplet $(i,j,z)$, where $z$ is the level index and pair $(i,j)$ indicates the rectangle inside of the level.
-The initial, the biggest tile on level $0$ is represented by the triplet $(0,0,0)$. For $z = 1$ there are four tiles $(0,0,1),(0,1,1),(1,0,1)$ and $(1,1,1)$. Each tile $(i,j,z)$ might be subdivided into four tiles of the same size one level higher: $(2i,2j,z+1),(2i,2j+1,z+1), (2i+1,2j,z+1)$, and $(2i+1,2j+1,z+1)$.
+A tile is a pair of a rectangle and data $(\textit{rect, tile\_data})$. Keys to the tile hierarchy are in the form $(i,j,z)$, where $z$ is the level index and pair $(i,j)$ indicates the rectangle inside of the level. The initial, the tile with the largest rectangle on level $0$ is represented by the triplet $(0,0,0)$. For $z = 1$ there are four tiles $(0,0,1),(0,1,1),(1,0,1)$ and $(1,1,1)$. Each tile $(i,j,z)$ can be subdivided into four tiles of the same size one level higher: $(2i,2j,z+1),(2i,2j+1,z+1), (2i+1,2j,z+1)$, and $(2i+1,2j+1,z+1)$.
 
 Each $z$-level is represented by a map $L(z)$, so $L(z)(i, j)$ gives us a specific tile. During the first phase we can discover some empty tiles which correspond to $L(z)(i, j)$ being not defined.
 
+The tiling works when the edge routing is done, so each edge $e$ has an associated curve $c(e)$. During the subdivision process we create pairs \textit{curve clips}, $(e, p)$, where $p$ is $c(e)$ or a continuous trimmed piece of $c(e)$. By construction we will have the property that for each curve clip $(e,p)$ the curve $p$ belong to the corresponding tile rectangle and it might touch the boundary of rectangle only at the endpoints of $p$.
+
+One of the parameters controlling the algorithm is the number for tile capacity, \capac~, setting the upper limit on how many elements can be visible in one tile. The elements could be a curve clip, an arrowhead, a node, or a label. In our setting \capac~is set by default to $10000$.
+
+The first phase starts with $L(0) = \{(0,0) \rightarrow \textit{tile data}\}$: the map consisting of only one lowest tile, and the elements of \textit{tile data} are all curve clips $e,c(e)$, all graph nodes, all edge labels, and all edge arrowheads. If the total number of these elements is less than \capac~then the first phase stops; this is the usual case for a small graph.
+
+If it is not the case then the first phase continues working. Let us suppose that the curerrent level is $z$. We denote by $C(i,j)$ the number of elements in $L(z)(i,j)$, in other words, the number elements crossing tile $(i,j,z)$.
+
 
 For the minimal size of the tile we take $(8\times w,8\times h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
-The algorithm starts after the edge routing is done, so each edge has a curve, an optional label, and arrowheads associated with it. For each edge $e$ with curve $c$ we create a pair \textit{curve clip}, $(e, c)$. The algorithm keeps a map from tilesInitially, we create one top level tile and
+The algorithm starts after the edge routing is done, so each edge has a curve, an optional label, and arrowheads associated with it.  The algorithm keeps a map from tilesInitially, we create one top level tile and
 
 
-One of the parameters controlling the algorithm is the tile capacity, \capac~, setting the upper limit on how many visual elements can be visible in one tile. The elements could be a curve clip, an arrowhead, a node, or a label. In our setting \capac~is set by default to $10000$.
 
 \bibliography{main}
 \bibliographystyle{ieeetr}
