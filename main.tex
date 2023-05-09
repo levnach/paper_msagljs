@@ -54,7 +54,8 @@
 \maketitle
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels were rendered, and the edges were not overlapping the nodes they are not adjacent to, then the problem is still standing. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
+  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels were rendered, and the edges were not overlapping the nodes they are not adjacent to, then the problem is still standing. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still a challenging task.
+   In this paper we describe novel approaches to several aspects of this problem.
 
   We give a new algorithm for edge routing, where the edges do not overlap the nodes to which they are not adjacent. The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
 
@@ -77,7 +78,9 @@ There has been progress in visualization of large graphs recently. Tools appeare
 
 We propose a novel and efficient algorithm for edge routing, where each edge can only intersect its source or target. The algorithm produces edge paths which are visually appealing and even optimal in their homotopy class.
 
-To facilitate graph visualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound. The method can be used in other viewers that support tiling.
+To facilitate graph visualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, 
+except of the views of the Shighest layer, the number of visible entities is not larger than a 
+predefined bound. The method can be used in other viewers that support tiling.
 
 Our method provides a high level overview of the graph.
 
@@ -87,41 +90,39 @@ A popular graph drawing tool Graphviz~\cite{graphviz} applies
 Scalable Force-Directed Placement~\cite{sfdp} for large graphs, with no
 support for tiling. Its edge routing for this case builds the whole
 visibility graph. This can be very slow because the visibility graph can have $O(n^2)$ edges,
- where $n$ is the number of the nodes in the graph.
+where $n$ is the number of the nodes in the graph.
 Interestingly, the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing},
 the last step of our approach, is used in Graphviz for the edge routing in the
 Sugiyama layout. We are not aware of any tool that integrates Graphviz
 and uses tiling as well.
-Tool yWorks~\cite{yworks} has method "Organic edge routing" that produces edge 
-routes around the nodes. The performance of the method is not clear. We could find only 
-a very general description of the method: "The algorithm is based on a force 
-directed layout paradigm. Nodes act as repulsive forces on edges in order to 
-guarantee a certain minimal distance between nodes and edges. Edges tend to contract 
-themselves. Using simulated annealing, this finally leads to edge layouts that 
+
+yWorks~\cite{yworks} has method "Organic edge routing" that produces edge
+routes around the nodes. We could find only
+a very general description of the method: "The algorithm is based on a force
+directed layout paradigm. Nodes act as repulsive forces on edges in order to
+guarantee a certain minimal distance between nodes and edges. Edges tend to contract
+themselves. Using simulated annealing, this finally leads to edge layouts that
 are calculated for each edge separately". It seems the algorithm runs in $O(n+m)log(n+m)$
-time, where $n$ is the number of the nodes and $m$ is the number of the edges. 
+time, where $n$ is the number of the nodes and $m$ is the number of the edges.
 
-Tool ReGraph~\cite{regraph} uses WebGL as the viewing platform. It can render a large
+ReGraph~\cite{regraph} uses WebGL as the viewing platform. It can render a large
 graph using straight lines for the edges. The tool does not support tiling, but instead
-expects the user interactively open the node.
+the user interactively opens the node that is a cluster of nodes. 
 
-Tool "graph-tool.skewed"~\cite{skewed} does not implement its own layout algorithms or 
-edge routing algorithms, but instead provides a nice wrapper around the algorithms from 
-other layout tools. 
+"graph-tool.skewed"~\cite{skewed} does not implement its own layout algorithms or
+edge routing algorithms, but instead provides a nice wrapper around the algorithms from
+other layout tools.
 
-\cite{circos}
+Circos~\cite{circos} visualizes large graphs in a circular layout. It does not support tiles.
 
-\cite{gibson2013survey}
 
-machine learing approach
-\cite{kwon2017would}
+Cosmograph~\cite{cosmograph} uses a GPU to calculate the layout of a graph and can 
+handle a graph with a million nodes. It renders edges as straight lines. 
+It does not support tiling.
 
-\cite{lin2013interactive}
-
-\cite{cosmograph}
-
-\section*{Edge routing}
-The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph. The spanner, see Fig.~\ref{fig:spanner}, is built on a variation of a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. This kind of graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number, and.  The family of cones with the apex at a specific vertex partition the plane as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is created connecting the cone apex with a vertex inside of the cone, so the graph has $O(n)$ edges where $n$ is the number of vertices. \\
+\section*{Edge routing in MSAGLJS}
+The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph, and then finding shortest paths on the spanner. The spanner, see Fig.~\ref{fig:spanner}, is built on a variation of a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. This kind of graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, 
+usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number.  The family of cones with the apex at a specific vertex partition the plane as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is created connecting the cone apex with a vertex inside of the cone, so the graph has $O(n)$ edges where $n$ is the number of vertices. \\
 \begin{figure}[]
   \centering
   \begin{minipage}[b]{0.5\textwidth}
@@ -139,7 +140,13 @@ The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph
   \end{minipage}
 \end{figure}
 
-The approach of~\cite{dwyer2010fast} first builds a polyline path through the spanner, then applies some local modifications to shorten and smoothen the path. It tries to shortcut a vertex iteratively, as illustrated in Fig~\ref{fig:shortcut}. To smoothen it fits Bezier segments into the polyline corners, using the binary search to find the larger fitting segments,see Fig~\ref{fig:cornerfit}. While anylyzing performance of edge routing in MSAGLJS, we noticed that for a graph with more than 100O nodes these heuristics sometimes create a performance bottleneck in spite of using R-Trees\cite{guttman1984r}.
+The approach of~\cite{dwyer2010fast} applies local optimizations to shorten an edge path.  
+Namely, it tries to shortcut one vertex at a time from the path, as illustrated in Fig~\ref{fig:shortcut}. 
+To smoothen a path, it fits Bezier segments into the polyline corners by 
+using a binary search to find a larger fitting segment, see Fig~\ref{fig:cornerfit}. 
+While anylyzing performance of the edge routing in MSAGLJS, 
+we noticed, that for a graph with more than 1k nodes these heuristics 
+sometime create a performance bottleneck in spite of using R-Trees\cite{guttman1984r}.
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.4\textwidth}
@@ -155,25 +162,24 @@ The approach of~\cite{dwyer2010fast} first builds a polyline path through the sp
   \end{minipage}
 \end{figure}
 \\
-In addition, when the naive shortcutting of polyline corners fails,  the resulting path is not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
+In addition, when the naive shortcutting of polyline corners fails,  the resulting path might remain not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 
-We replace these heuristics with a more precize optimization.
+We replace these heuristics with a more precize and efficient optimization described below.
 \subsection*{Path optimization} {
 Remember that a simple polygon is a polygon without holes.
 
-An application of the 'path in a simple polygon' optimization is not a new approach.
-The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical
-layouts, where a simple polygon, \plg, containing the path is available.
-They write: "If \plg~does not contain holes ... we can apply a
+An application of the 'path in a simple polygon' optimization to edge routing is not a new approach.
+The authors of Graphvis used it~\cite{dobkin1997implementing}, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a
 standard “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}
 for finding Euclidean shortest paths in a simple polygon". In general case,
 for a non-layered layout, they build the visibility graph which is
 very expensive.
 
-Here we drop the requirement that $P$ is simple. Indeed, to run the “funnel” algorithm one only needs a sleeve: a sequence of triangles adjoined on an edge and leading from the start to the end of the path.  We show how to build polygon \plg, create a sleeve, and produce an optimized path, for any layout.
-Let us describe our method.
+In our settings we are able to find the polygon \plg~even for any layout. We drop the requirement that \plg~is simple. Indeed, to run the “funnel” algorithm one only needs a sleeve: a sequence of triangles, where each triangle shares an edge with its successor, and leading from the start to the end of the path.  Let us show how to build polygon \plg, create a sleeve, and produce an optimized path.
 
-We call obstacles $\mathcal{O}$~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$ and call it $\mathcal{T}$. Then for each edge of the graph we proceed with the following steps.
+We call obstacles, $\mathcal{O}$, ~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges, we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$. Let us call this triangulation $\mathcal{T}$. 
+
+For each edge of the graph we proceed with the following steps.
 
 We route a path, called \unpath, on the spanner, as illistrated by Fig.~\ref{fig:non_opt_path_L}.
 \begin{figure}[!tbp]
@@ -204,10 +210,10 @@ We route a path, called \unpath, on the spanner, as illistrated by Fig.~\ref{fig
 \end{figure}
 Let $\mathcal{S}$ and $\mathcal{E}$ be the obstacles containing correspondengly \unpath's start and end point.
 To obtain \plg, let us consider \triset, the set of all triangles ${t} \in \mathcal{T}$ such that
-either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~and is not inside of any obstacle in $O \setminus \{S,E\}$  .
+either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~and is not inside of any obstacle in $\mathcal{O} \setminus \{S,E\}$  .
 The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
 To create the sleeve~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~such that every edge of the triangulation is either a boundary edge of \plg~, or a diagonal of \plg. In our setup \triset~might not have this property, as in Fig.~\ref{fig:polygon_with_path}. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
-We trace \unpath~through the new triangulation and obtain the sleeve. Finally, we apply the funnel algorithm on the sleeve and obtain the path which is the shortest in the homotopy class of \unpath, as illustrated in Fig.~\ref{fig:optimized_path}.\\
+We trace path \unpath~through the new triangulation and obtain the sleeve. Finally, we apply the funnel algorithm on the sleeve and obtain the path which is the shortest in the homotopy class of \unpath, as illustrated in Fig.~\ref{fig:optimized_path}.\\
 The discussion~\cite{pathOpt} of the algorithm helped us in the implementation.\\
 \begin{figure}[]
   \centering
