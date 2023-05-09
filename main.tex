@@ -54,15 +54,15 @@
 \maketitle
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. However, interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
+  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels were rendered, and the edges were not overlapping the nodes they are not adjacent to, then the problem is still standing. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
 
-  We give a new algorithm for edge routing, where the edges do not overlap the nodes. The algorithm  produces edge paths which are visually appealing and optimal in their homothopy class.
+  We give a new algorithm for edge routing, where the edges do not overlap the nodes to which they are not adjacent. The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
 
-  To facilitate graph vizualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
+  To facilitate graph visualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
 
-  Our method provides a high level overview of the graph.
+  Our method provides a high level overview of the graph, with the gradual increase of the detail level. We make the node labels of the most important nodes for the current view visible.
 
-  The edge routing algorithm mentioned above is reused at the tiling stage to simplify the paths on the lower levels. In addition, we bundle edges per-tile as an optimization heuristic.
+  The edge routing algorithm mentioned above is reused at the tiling stage to simplify the paths on the lower levels. In addition, we bundle edges per-tile as an optimization heuristic
 \end{abstract}
 
 
@@ -70,16 +70,44 @@
 
 \label{sec:intro}
 
-We discuss large but not huge graphs. The maximum number of vertices of graphs we looked at was 28283, and the maximum number of edges was 237010. There are many algorithms that calculate a node layout for such graphs in a few seconds~\cite{hu2015visualizing,brandes2007eigensolver}, and we do not discuss them.
+We target our approach to large but not huge graphs. The maximum number of vertices of the graphs we looked at was 28k, and the maximum number of the edges was 237k. There are quite a few algorithms that calculate node positions for such graphs, and work very fast~\cite{hu2015visualizing,brandes2007eigensolver}. We look at the node layout as a solved problem.
 
-In the first part of the paper we address edge routing where an edge only intersects the nodes it is adjacent to. Our approach works for any node layout, as long as the nodes do not overlap each other. The approach builds on~\cite{dwyer2010fast} and improves it.
+In the first part of the paper we address edge routing where an edge does not intersects the nodes it is not adjacent to. Our approach works for any node layout, as long as it produces a layout whithout overlap. We build on the edge routing from~\cite{dwyer2010fast} and improve it.
+There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, the situatiton changes if we request that the node labels are rendered, and the edges overlap only the nodes they are adjacent to. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
 
+We propose a novel and efficient algorithm for edge routing, where each edge can only intersect its source or target. The algorithm produces edge paths which are visually appealing and even optimal in their homotopy class.
+
+To facilitate graph visualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound. The method can be used in other viewers that support tiling.
+
+Our method provides a high level overview of the graph.
+
+The edge routing algorithm mentioned above is reused at the tiling stage to simplify the paths on the lower levels. In addition, we bundle edges per-tile as an optimization heuristic.
 \section*{Related work}
-\cite{graphviz}
+A popular graph drawing tool Graphviz~\cite{graphviz} applies
+Scalable Force-Directed Placement~\cite{sfdp} for large graphs, with no
+support for tiling. Its edge routing for this case builds the whole
+visibility graph. This can be very slow because the visibility graph can have $O(n^2)$ edges,
+ where $n$ is the number of the nodes in the graph.
+Interestingly, the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing},
+the last step of our approach, is used in Graphviz for the edge routing in the
+Sugiyama layout. We are not aware of any tool that integrates Graphviz
+and uses tiling as well.
+Tool yWorks~\cite{yworks} has method "Organic edge routing" that produces edge 
+routes around the nodes. The performance of the method is not clear. We could find only 
+a very general description of the method: "The algorithm is based on a force 
+directed layout paradigm. Nodes act as repulsive forces on edges in order to 
+guarantee a certain minimal distance between nodes and edges. Edges tend to contract 
+themselves. Using simulated annealing, this finally leads to edge layouts that 
+are calculated for each edge separately". It seems the algorithm runs in $O(n+m)log(n+m)$
+time, where $n$ is the number of the nodes and $m$ is the number of the edges. 
 
-\cite{regraph}
+Tool ReGraph~\cite{regraph} uses WebGL as the viewing platform. It can render a large
+graph using straight lines for the edges. The tool does not support tiling, but instead
+expects the user interactively open the node.
 
-\cite{skewed}
+Tool "graph-tool.skewed"~\cite{skewed} does not implement its own layout algorithms or 
+edge routing algorithms, but instead provides a nice wrapper around the algorithms from 
+other layout tools. 
 
 \cite{circos}
 
@@ -133,7 +161,14 @@ We replace these heuristics with a more precize optimization.
 \subsection*{Path optimization} {
 Remember that a simple polygon is a polygon without holes.
 
-An application of the 'path in a simple polygon' optimization is not a new approach. The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a standard “funnel” algorithm \cite{chazelle1982theorem,hershberger1994computing} for finding Euclidean shortest paths in a simple polygon". In general case, for a non-layered layout, they build the visibility graph which is very expensive.
+An application of the 'path in a simple polygon' optimization is not a new approach.
+The authors of~\cite{dobkin1997implementing} used it, but only for hierarchical
+layouts, where a simple polygon, \plg, containing the path is available.
+They write: "If \plg~does not contain holes ... we can apply a
+standard “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}
+for finding Euclidean shortest paths in a simple polygon". In general case,
+for a non-layered layout, they build the visibility graph which is
+very expensive.
 
 Here we drop the requirement that $P$ is simple. Indeed, to run the “funnel” algorithm one only needs a sleeve: a sequence of triangles adjoined on an edge and leading from the start to the end of the path.  We show how to build polygon \plg, create a sleeve, and produce an optimized path, for any layout.
 Let us describe our method.
