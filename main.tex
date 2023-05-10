@@ -168,17 +168,15 @@ sometime create a performance bottleneck, in spite of using R-Trees\cite{guttman
 In addition, when the naive shortcutting of polyline corners fails,  the resulting path might remain not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 
 We replace these heuristics with a more precize and efficient optimization described below.
-\subsection*{Path optimization} {
-Remember that a simple polygon is a polygon without holes.
+\subsection*{Path optimization} { 
+  We finalize edge routes by the “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}, routing a path inside a simple polygon, that is a polygon without holes.
 
-An application of the 'path in a simple polygon' optimization to edge routing is not a new approach.
-The authors of Graphvis used it~\cite{dobkin1997implementing}, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a
-standard “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}
-for finding Euclidean shortest paths in a simple polygon". In general case,
-for a non-layered layout, they build the visibility graph which is
-very expensive.
+An application of the 'path in a simple polygon' optimization to edge routing is not a new idea: the novelty of our work is in how we find the polygon and how we use it.
+The authors of Graphvis used the 'funnel' algorithm~\cite{dobkin1997implementing}, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a
+standard “funnel” algorithm ... for finding Euclidean shortest paths in a simple polygon". In general case,
+for a non-layered layout, they build the visibility graph which is very expensive for a large graph.
 
-In our settings we are able to find the polygon \plg~even for any layout. We drop the requirement that \plg~is simple. Indeed, to run the “funnel” algorithm one only needs a “sleeve”: a sequence of triangles leading from the start to the end of the path, where each triangle shares an edge with its successor. Let us show how to build polygon \plg, create a sleeve, and produce an optimized path.
+Here we find the polygon \plg~for any layout. We drop the requirement that \plg~is simple. Indeed, to run the “funnel” algorithm one only needs a “sleeve”: a sequence of triangles leading from the start to the end of the path, where each triangle shares a side with its successor. Let us show how to build polygon \plg, create a sleeve, and produce an optimized path.
 
 We call obstacles, $\mathcal{O}$, ~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges, we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$. Let us call this triangulation $\mathcal{T}$. 
 
@@ -214,8 +212,8 @@ We route a path, called \unpath, on the spanner, as illistrated by Fig.~\ref{fig
 Let $\mathcal{S}$ and $\mathcal{E}$ be the obstacles containing correspondengly \unpath's start and end point.
 To obtain \plg, let us consider \triset, the set of all triangles ${t} \in \mathcal{T}$ such that
 either ${t} \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath~and is not inside of any obstacle in $\mathcal{O} \setminus \{S,E\}$  .
-The union of \triset~gives us \plg. The boundary of \plg~comprizes all edges $e$ of the triangles from \triset~ such that $e$ is adjacent to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
-To create the sleeve~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~such that every edge of the triangulation is either a boundary edge of \plg~, or a diagonal of \plg. In our setup \triset~might not have this property, as in Fig.~\ref{fig:polygon_with_path}. We create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
+The union of \triset~gives us \plg. The boundary of \plg~comprizes all sides $e$ of the triangles from \triset~ such that $e$ belongs to exactly one triangle from \triset, see Fig.~\ref{fig:polygon_with_path}. \\
+To create the sleeve~\cite{chazelle1982theorem,hershberger1994computing}, we need to have a triangulation of \plg~such that every edge of the triangulation is either a boundary edge of \plg, or a diagonal of \plg. Because \triset~might not have this property, as in Fig.~\ref{fig:polygon_with_path}, we create a new Constrained Delaunay Triangulation of \plg, where the set of constrained edges is the boundary of \plg, see Fig.~\ref{fig:new_triangulation}.\\
 We trace path \unpath~through the new triangulation and obtain the sleeve. Finally, we apply the funnel algorithm on the sleeve and obtain the path which is the shortest in the homotopy class of \unpath, as illustrated in Fig.~\ref{fig:optimized_path}.\\
 The discussion~\cite{pathOpt} of the algorithm helped us in the implementation.\\
 \begin{figure}[]
@@ -224,7 +222,7 @@ The discussion~\cite{pathOpt} of the algorithm helped us in the implementation.\
   \caption{\plg~is not simple. The dotted path is shorter than the dashed one that was found by the routing.}
   \label{fig:non_optimal_path}
 \end{figure}
-Polygon \plg~is not neccesserely simple, as shown in Fig.~\ref{fig:non_optimal_path}.
+Polygon \plg~is not necessarily simple, as shown in Fig.~\ref{fig:non_optimal_path}.
 In this example the path that we calculate with the funnel algorithm is not the shortest path inside of \plg.
 \subsection*{Performance and quality comparison}
 In Fig.~\ref{fig:improved_routing} we compare the paths generated by the old and the new method. We can see that the paths produced by the new method have no kinks. We also know that these paths are  the shorterst in their 'channels'. Arguably, the new method produces better paths.
@@ -236,7 +234,7 @@ In Fig.~\ref{fig:improved_routing} we compare the paths generated by the old and
 \end{figure}
 
 
-Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that the older approach outperforms the new one on the smaller graphs; those with the number of nodes under 2000. The new method is faster on the rest of the graphs. We still prefer to use the new method independently of the graph size since the slowdown is insignificant, under half of a second in our experiments, but the quality of the paths is better. On the larger graphs the new method runs faster and produces better paths, so it is an obvious choice there.
+Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that the older approach outperforms the new one on the smaller graphs; those with the number of nodes under 2000. The new method is faster on the rest of the graphs. We still prefer to use the new method independently of the graph size since the slowdown is insignificant, under half of a second in our experiments, but the quality of the paths is better. On the larger graphs the new method runs faster and produces better paths, so it is an obvious choice.
 \begin{table}
   \begin{center}
     \begin{tabular}{||c |c| c| c| c||}
@@ -282,26 +280,27 @@ The initial tile, the tile with the largest rectangle on level $0$ is represente
 
 Each $z$-level is represented by a map $L(z)$, so $L(z)(i, j)$ gives us a specific tile. During the first phase we can discover some empty tiles which correspond to $L(z)(i, j)$ being not defined.
 
-The tiling works when the edge routing is done, so each edge $e$ has an associated curve $c(e)$, an optional arrowheads, and labels. During the subdivision process we create pairs \textit{curve clips}, $(e, p)$, where $p$ is $c(e)$ or a continuous trimmed piece of $c(e)$. By construction, we will have the property that for each curve clip $(e,p)$ 
+The tiling calculation is applied after the edge routing is finished, so each edge $e$ has an associated curve $c(e)$, optional arrowheads, and labels already calculated. During the subdivision process we create pairs \textit{curve clips}, $(e, p)$, where $p$ is $c(e)$ or a continuous trimmed piece of $c(e)$. By construction, we will have the property $\mathcal{F}$, that for each curve clip $(e,p)$ 
 
 a) $p$ is contained in the corresponding tile rectangle. 
 
 b) $p$ might cross the boundary of the rectangle only at the endpoints of $p$.
 
-Two parameters controll the algorithm: tile capacity, \capac~, the maximum number of elements visible in a tile, and the minimala size of a tile: (\mw, \mh). The elements or a tile are curve clips, arrowheads, nodes, or edge labels. In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
+Two parameters control the algorithm: tile capacity, \capac~, the maximum number of elements visible in a tile, and the minimal size of a tile: (\mw, \mh). The elements or a tile are curve clips, arrowheads, nodes, or edge labels. In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
 
+\subsection*{First phase of tiling}
+The first phase starts with $L(0) = \{(0,0) \rightarrow (\textit{rect},\textit{tile data})\}$: and \textit{tile data} comprising curve clips $(e,c(e))$, for all edges $e$ of the graph, all graph nodes, all edge labels, and all edge arrowheads. We can make sure that property $\mathcal{F}$ holds by setting \textit{rect} to a padded bounding box of the graph, so each edge curve does not intersect the boundary of \textit{rect}.
 
-The first phase starts with $L(0) = \{(0,0) \rightarrow \textit{tile data}\}$: and \textit{tile data} comprising curve clips $(e,c(e))$, where $e$ is an edge of the graph, all graph nodes, all edge labels, and all edge arrowheads. If the number of these elements is not greater than \capac~the first phase, and the whole algorithm, stop; this is the usual case for a small graph.
+If the number of these elements is not greater than \capac~the first phase, and the whole algorithm, stop; this is the usual case for a small graph. Otherwise, the first phase continues.
 
-Otherwise, the first phase continues. Let us suppose that level $z$ is built. We denote by $C_z(i,j)$ the number of elements in $L(z)(i,j)$. If for each $(i,j)$ we have $C_z(i,j) \leq$ \capac, then the first phase stops and the second phase starts. The same happens if the $w \leq \mathcal{W}$ and $h \leq \mathcal{H}$, where $w$ ($h$) is half length of the current tile width (correspondengly, height). 
+Let us suppose that level $z$ is built. If for each $(i,j)$ the number of elements in $L(z)(i,j)$ is not greater than \capac, or, if $w \leq \mathcal{W}$ and $h \leq \mathcal{H}$, where $w$ ($h$) is the current tile width (correspondengly, height), then the second phase starts 
 
-Otherwise, we proceed to build the next level $z+1$.
-We divide each tile $t=L(z)(i, j)$ into for equal sized sub-tiles. For each node, arrowhead, or edge label of $t$ if the element's bounding box intersects a subtile then we assign the element to it.
+Otherwise, we proceed to build level $z+1$.
+We divide each tile $t=L(z)(i, j)$ into four equal sized subtiles. For each node, arrowhead, or edge label of $t$, if the bounding box of the element intersects the subtile's rectangle then we assign the element to the subtile.
 
-The edge clip treatment is more involved. Let $ab$ be the horizontal midline segment of $t$, and $cd$ be the vertical midline segment of $t$. Let $(e, c)$ be a curve clip of $t$. We find all intersections of curve $c$ with $ab$ and $cd$. Each $j$-th intersection can be represented as $c[t_j]$. We sort sequence $[s, \dots, t_j, \dots, e]$ in the ascending order, obtain sequence $u$. 
-Here $s,e$ is the parameter domain of $c$.
-We obtain curve clips $(e, \text{trim}(c, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$. We assign each curve clip to the subtile containing its bounding box. By the assumption above, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints.
-
+The edge clip treatment is more involved. Let $(e, c)$ be a curve clip belonging to tile $t$. We find all intersections of curve $c$ with horizontal and vertical midlines of the rectangle of $t$. Each intersection can be represented as $c[t_j]$. We sort sequence $[s, \dots, t_j, \dots, e]$ in the ascending order, obtaining sequence $u$. Here $[s,e]$ is the parameter domain of $c$.
+We create curve clips $(e, l_k)=(e, \textit{trim}(c, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$. We assign each curve clip $(e,l_k)$ to the subtile with the rectangle containing the bounding box of $l_k$. By  property $\mathcal{F}$ to be true on level $z$, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints, so the property $\mathcal{F}$ holds for the level $z+1$.
+\subsection*{Second phase of tiling}
 
 
 \bibliography{main}
