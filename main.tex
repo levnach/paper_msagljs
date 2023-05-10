@@ -124,7 +124,7 @@ handle a graph with a million nodes. It renders edges as straight lines.
 It does not support tiling.
 
 \section*{Edge routing in MSAGLJS}
-The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph, and then finding shortest paths on the spanner. The spanner, see Fig.~\ref{fig:spanner}, is built on a variation of a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. This kind of graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, 
+The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph, and then finding shortest paths on the spanner. The spanner, see Fig~\ref{fig:spanner}, is built on a variation of a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. This kind of graph is defined by the set of cones with the apices at the vertices. The cones have the same angle, 
 usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number.  The family of cones with the apex at a specific vertex partition the plane as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is created connecting the cone apex with a vertex inside of the cone, so the graph has $O(n)$ edges where $n$ is the number of vertices. \\
 \begin{figure}[]
   \centering
@@ -298,8 +298,17 @@ Let us suppose that level $z$ is built. If for each $(i,j)$ the number of elemen
 Otherwise, we proceed to build level $z+1$.
 We divide each tile $t=L(z)(i, j)$ into four equal sized subtiles. For each node, arrowhead, or edge label of $t$, if the bounding box of the element intersects the subtile's rectangle then we assign the element to the subtile.
 
-The edge clip treatment is more involved. Let $(e, c)$ be a curve clip belonging to tile $t$. We find all intersections of curve $c$ with horizontal and vertical midlines of the rectangle of $t$. Each intersection can be represented as $c[t_j]$. We sort sequence $[s, \dots, t_j, \dots, e]$ in the ascending order, obtaining sequence $u$. Here $[s,e]$ is the parameter domain of $c$.
-We create curve clips $(e, l_k)=(e, \textit{trim}(c, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$. We assign each curve clip $(e,l_k)$ to the subtile with the rectangle containing the bounding box of $l_k$. By  property $\mathcal{F}$ to be true on level $z$, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints, so the property $\mathcal{F}$ holds for the level $z+1$.
+The edge clip treatment is more involved. Let $(e, c)$ be a curve clip belonging to tile $t$. We find all intersections of curve $c$ with horizontal and vertical midlines of the rectangle of $t$. Each intersection can be represented as $c[t_j]$. We sort sequence $u =[s, \dots, t_j, \dots, e]$, where $[s,e]$ is the parameter domain of $c$, in ascending order, and remove the duplicates. 
+Next we create curve clips $(e, l_k)=(e, \textit{trim}(c, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$, as illustrated by Fig~\ref{fig:clip}. We assign each curve clip $(e,l_k)$ to the subtile with the rectangle containing the bounding box of $l_k$.  By  property $\mathcal{F}$ to be true on level $z$, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints, so the property $\mathcal{F}$ holds for the level $z+1$.
+\begin{figure}[!tbp]
+  \centering
+    \includegraphics[width=\textwidth/2]{./edge_clips.png}
+    \caption{Intersect curve [start,end] with the midlines.
+Sort the intersections parametern together with start, end get $u = [start, a,b,c, end]$. Split the curve to sub-curves: [start,a], [a,b],[b,c],[c,end].}
+\label{fig:clip}
+  \end{figure}
+    
+
 \subsection*{Second phase of tiling}
 
 
