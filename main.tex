@@ -37,6 +37,8 @@
 \newcommand{\plg}{$\mathcal{P}$}
 \newcommand{\obst}{$\mathcal{O}$}
 \newcommand{\capac}{$\mathcal{C}$}
+\newcommand{\mw}{$\mathcal{W}$}
+\newcommand{\mh}{$\mathcal{H}$}
 \begin{document}
 
 
@@ -54,12 +56,13 @@
 \maketitle
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels were rendered, and the edges were not overlapping the nodes they are not adjacent to, then the problem is still standing. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still a challenging task.
-   In this paper we describe novel approaches to several aspects of this problem.
+  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels are rendered, and the edges are routed around the nodes, then the problem is still standing. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still a challenging task.
+   
+  In this paper we describe novel approaches to several aspects of this problem.
 
-  We give a new algorithm for edge routing, where the edges do not overlap the nodes to which they are not adjacent. The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
+  We give a new algorithm for edge routing, where the edges are routed around the nodes. The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
 
-  To facilitate graph visualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
+  To facilitate graph visualization with DeckGL, or any other viewer supporting tiles, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
 
   Our method provides a high level overview of the graph, with the gradual increase of the detail level. We make the node labels of the most important nodes for the current view visible.
 
@@ -146,7 +149,7 @@ To smoothen a path, it fits Bezier segments into the polyline corners by
 using a binary search to find a larger fitting segment, see Fig~\ref{fig:cornerfit}. 
 While anylyzing performance of the edge routing in MSAGLJS, 
 we noticed, that for a graph with more than 1k nodes these heuristics 
-sometime create a performance bottleneck in spite of using R-Trees\cite{guttman1984r}.
+sometime create a performance bottleneck, in spite of using R-Trees\cite{guttman1984r}.
 \begin{figure}[!tbp]
   \centering
   \begin{minipage}[b]{0.4\textwidth}
@@ -175,7 +178,7 @@ for finding Euclidean shortest paths in a simple polygon". In general case,
 for a non-layered layout, they build the visibility graph which is
 very expensive.
 
-In our settings we are able to find the polygon \plg~even for any layout. We drop the requirement that \plg~is simple. Indeed, to run the “funnel” algorithm one only needs a sleeve: a sequence of triangles, where each triangle shares an edge with its successor, and leading from the start to the end of the path.  Let us show how to build polygon \plg, create a sleeve, and produce an optimized path.
+In our settings we are able to find the polygon \plg~even for any layout. We drop the requirement that \plg~is simple. Indeed, to run the “funnel” algorithm one only needs a “sleeve”: a sequence of triangles leading from the start to the end of the path, where each triangle shares an edge with its successor. Let us show how to build polygon \plg, create a sleeve, and produce an optimized path.
 
 We call obstacles, $\mathcal{O}$, ~the set of polygons covering the original nodes, see Fig.~\ref{fig:spanner}. Before routing edges, we calculate a Constrained Delaunay Triangulation~\cite{delaunay1934sphere} on $\mathcal{O}$. Let us call this triangulation $\mathcal{T}$. 
 
@@ -285,14 +288,20 @@ a) $p$ is contained in the corresponding tile rectangle.
 
 b) $p$ might cross the boundary of the rectangle only at the endpoints of $p$.
 
-One of the parameters controlling the algorithm is tile capacity, \capac~, the maximum number of elements visible in a tile. The elements are curve clips, arrowheads, nodes, or edge labels. In our setting \capac~is set by default to $1000$.
-
-The first phase starts with $L(0) = \{(0,0) \rightarrow \textit{tile data}\}$: and \textit{tile data} comprising curve clips $(e,c(e))$, where $e$ is an edge of the graph, all graph nodes, all edge labels, and all edge arrowheads. If the total number of these elements is not greater than \capac~the first phase stops; this is the usual case for a small graph.
-
-Otherwise, the first phase continues. Let us suppose that level $z$ is built. We denote by $C(i,j)$ the number of elements in $L(z)(i,j)$
+Two parameters controll the algorithm: tile capacity, \capac~, the maximum number of elements visible in a tile, and the minimala size of a tile: (\mw, \mh). The elements or a tile are curve clips, arrowheads, nodes, or edge labels. In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
 
 
-For the minimal size of the tile we take $(8\times w,8\times h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
+The first phase starts with $L(0) = \{(0,0) \rightarrow \textit{tile data}\}$: and \textit{tile data} comprising curve clips $(e,c(e))$, where $e$ is an edge of the graph, all graph nodes, all edge labels, and all edge arrowheads. If the number of these elements is not greater than \capac~the first phase, and the whole algorithm, stop; this is the usual case for a small graph.
+
+Otherwise, the first phase continues. Let us suppose that level $z$ is built. We denote by $C_z(i,j)$ the number of elements in $L(z)(i,j)$. If for each $(i,j)$ we have $C_z(i,j) \leq$ \capac, then the first phase stops and the second phase starts. The same happens if the $w \leq \mathcal{W}$ and $h \leq \mathcal{H}$, where $w$ ($h$) is half length of the current tile width (correspondengly, height). 
+
+Otherwise, we proceed to build the next level $z+1$.
+We divide each tile $t=L(z)(i, j)$ into for equal sized sub-tiles. For each node, arrowhead, or edge label of $t$ if the element's bounding box intersects a subtile then we assign the element to it.
+
+The edge clip treatment is more involved. Let $ab$ be the horizontal midline segment of $t$, and $cd$ be the vertical midline segment of $t$. Let $(e, c)$ be a curve clip of $t$. We find all intersections of curve $c$ with $ab$ and $cd$. Each $j$-th intersection can be represented as $c[t_j]$. We sort sequence $[s, \dots, t_j, \dots, e]$ in the ascending order, obtain sequence $u$. 
+Here $s,e$ is the parameter domain of $c$.
+We obtain curve clips $(e, \text{trim}(c, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$. We assign each curve clip to the subtile containing its bounding box. By the assumption above, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints.
+
 
 
 \bibliography{main}
