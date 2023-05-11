@@ -60,9 +60,9 @@
    
   In this paper we describe novel approaches to several aspects of this problem.
 
-  We give a new algorithm for edge routing, where the edges are routed around the nodes. The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
+  We give a new efficient algorithm for edge routing, where the edges are routed around the nodes. The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
 
-  To facilitate graph visualization with DeckGL, or any other viewer supporting tiles, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible entities is not larger than a predefined bound.
+  To facilitate graph visualization with DeckGL, or any other viewer supporting tiles, we propose a new simple and fast tiling method. The method guarantees that in every view, except of the highest layer, the number of visible nodes per tile is not larger than a predefined bound.
 
   Our method provides a high level overview of the graph, with the gradual increase of the detail level. We make the node labels of the most important nodes for the current view visible.
 
@@ -273,41 +273,45 @@ The second phase processes the levels in the reverse order, by filtering the ent
 Finally, the third phase simplifies the edge routes to utilize the space freed by the filtered out entities.
 
 
-A tile, in our settings, is a pair of a rectangle and data $(\textit{rect, tile\_data})$. Each tile is indexed by a triple in the form $(i,j,z)$, where $z$ is the level index and pair $(i,j)$ indicates the rectangle inside of the level. 
-The tiles on the same level have the same size.
+A tile, in our settings, is a pair $(\textit{rect, tiledata})$, where \textit{rect} is the rectangle of the tile and \textit{tiledata} is a set of elements visible in \textit{rect}. An  element could be a node, an edge label, an edge arrowhead, or a \textit{curve clip}. A curve clip is a pair $(e, p)$, where $e$ is an edge and $p$ is a continuous piece of the edge curve $c_e$. Sometimes we need several edge clips to trace an edge through a tile. 
 
-The initial tile, the tile with the largest rectangle on level $0$ is represented by the triplet $(0,0,0)$. For $z = 1$, there are four tiles: $(0,0,1),(0,1,1),(1,0,1)$, and $(1,1,1)$. Each tile $(i,j,z)$ can be subdivided into four tiles for level $z+1$: $(2i,2j,z+1),(2i,2j+1,z+1), (2i+1,2j,z+1)$, and $(2i+1,2j+1,z+1)$.
+Each tile is uniqually defined by a triple of integers $(i,j,z)$, where $z$ is the level index and pair $(i,j)$ indicates the rectangle inside of the level. The tiles on the same level have the same size.
 
-Each $z$-level is represented by a map $L(z)$, so $L(z)(i, j)$ gives us a specific tile. During the first phase we can discover some empty tiles which correspond to $L(z)(i, j)$ being not defined.
 
-The tiling calculation is applied after the edge routing is finished, so each edge $e$ has an associated curve $c(e)$, optional arrowheads, and labels already calculated. During the subdivision process we create pairs \textit{curve clips}, $(e, p)$, where $p$ is $c(e)$ or a continuous trimmed piece of $c(e)$. By construction, we will have the property $\mathcal{F}$, that for each curve clip $(e,p)$ 
+The initial tile, the only tile on level $0$, is represented by triplet $(0,0,0)$. For $z = 1$, there are four tiles: $(0,0,1),(0,1,1),(1,0,1)$, and $(1,1,1)$. Each tile $(i,j,z)$ can be subdivided into four subtiles for level $z+1$: $(2i,2j,z+1),(2i,2j+1,z+1), (2i+1,2j,z+1)$, and $(2i+1,2j+1,z+1)$.
 
-a) $p$ is contained in the corresponding tile rectangle. 
+Each $z$-level is represented by a map $L_z$, so $L_z(i, j)$ gives us a specific tile. During the first phase we can discover some empty tiles which correspond to $L_z(i, j)$ being not defined.
 
-b) $p$ might cross the boundary of the rectangle only at the endpoints of $p$.
+Edge clips are needed to efficiently represent the edge intersections with the tiles and to render no more and no less than needed. To ensure this correct and efficient rendering we require property $\mathcal{F}$: 
 
-Two parameters control the algorithm: tile capacity, \capac~, the maximum number of elements visible in a tile, and the minimal size of a tile: (\mw, \mh). The elements or a tile are curve clips, arrowheads, nodes, or edge labels. In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
+For each tile $t$, for each curve clip $(e,p) \in t.\textit{tiledata}$ 
+
+a) $p \subset t.rect$ 
+
+b) $p$ might cross the boundary of the $t.rect$ only at endpoints of $p$.
+
+c) for each edge $e$ the union of all $p$ for all $(e,p) \in t.\textit{tiledata}$ is equal to $c_e \cap t.rect$.
 
 \subsection*{First phase of tiling}
-The first phase starts with $L(0) = \{(0,0) \rightarrow (\textit{rect},\textit{tile data})\}$: and \textit{tile data} comprising curve clips $(e,c(e))$, for all edges $e$ of the graph, all graph nodes, all edge labels, and all edge arrowheads. We can make sure that property $\mathcal{F}$ holds by setting \textit{rect} to a padded bounding box of the graph, so each edge curve does not intersect the boundary of \textit{rect}.
 
-If the number of these elements is not greater than \capac~the first phase, and the whole algorithm, stop; this is the usual case for a small graph. Otherwise, the first phase continues.
+The first phase starts with $L(0) = \{(0,0) \rightarrow (\textit{rect},\textit{tiledata})\}$: and \textit{tiledata} comprising curve clips $(e,c_e)$, for all edges $e$ of the graph, all graph nodes, all edge labels, and all edge arrowheads. We can make sure that property $\mathcal{F}$ holds by setting \textit{rect} to a padded bounding box of the graph, so each edge curve does not intersect the boundary of \textit{rect}.
 
-Let us suppose that level $z$ is built. If for each $(i,j)$ the number of elements in $L(z)(i,j)$ is not greater than \capac, or, if $w \leq \mathcal{W}$ and $h \leq \mathcal{H}$, where $w$ ($h$) is the current tile width (correspondengly, height), then the second phase starts 
+Let us assume that level $z$ is built and $\mathcal{F}$ holds for tiles of this level. To build level $z+1$ we divide each tile $t=L_z(i, j)$ into four equal sized subtiles. For each node, arrowhead, or edge label of $t.\textit{tiledata}$, if the bounding box of the element intersects the subtile's rectangle then we assign the element to the subtile.
 
-Otherwise, we proceed to build level $z+1$.
-We divide each tile $t=L(z)(i, j)$ into four equal sized subtiles. For each node, arrowhead, or edge label of $t$, if the bounding box of the element intersects the subtile's rectangle then we assign the element to the subtile.
-
-The edge clip treatment is more involved. Let $(e, c)$ be a curve clip belonging to tile $t$. We find all intersections of curve $c$ with horizontal and vertical midlines of the rectangle of $t$. Each intersection can be represented as $c[t_j]$. We sort sequence $u =[s, \dots, t_j, \dots, e]$, where $[s,e]$ is the parameter domain of $c$, in ascending order, and remove the duplicates. 
-Next we create curve clips $(e, l_k)=(e, \textit{trim}(c, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$, as illustrated by Fig~\ref{fig:clip}. We assign each curve clip $(e,l_k)$ to the subtile with the rectangle containing the bounding box of $l_k$.  By  property $\mathcal{F}$ to be true on level $z$, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints, so the property $\mathcal{F}$ holds for the level $z+1$.
+The edge clip treatment is more involved. Let $(e, p)$ be a curve clip belonging to tile $t$. We find all intersections of curve $p$ with the horizontal midline and the vertical midline of the rectangle of $t$. Each intersection can be represented as $p[t_j]$. We sort sequence $u =[start, \dots, t_j, \dots, end]$, where $[start,end]$ is the parameter domain of $p$, in ascending order, and remove the duplicates. 
+Next we create curve clips $(e, l_k)=(e, \textit{trim}(p, u_k, u_{k+1}))$ for $k = 0, \dots, n-1$, where $n$ is the length of $u$, as shown in Fig~\ref{fig:clip}. We assign each curve clip $(e,l_k)$ to the subtile with the rectangle containing the bounding box of $l_k$.  Because, by the induction assumption property $\mathcal{F}$ is true on $L_z$, and by construction, each new curve clip can cross the boundary of the subtile only at the clip endpoints. We also covered all the intersections of $p$ with the subtiles with the new edge clips, so the property $\mathcal{F}$ holds for $L_{z+1}$.
 \begin{figure}[!tbp]
   \centering
     \includegraphics[width=\textwidth/2]{./edge_clips.png}
     \caption{Intersect curve [start,end] with the midlines.
-Sort the intersections parametern together with start, end get $u = [start, a,b,c, end]$. Split the curve to sub-curves: [start,a], [a,b],[b,c],[c,end].}
+Sort the intersections parameters together with start, and end into array $u = [start, a,b,c, end]$. Split the curve to sub-curves [start,a], [a,b],[b,c],[c,end].}
 \label{fig:clip}
   \end{figure}
-    
+
+Two parameters control the algorithm: tile capacity, \capac~, and the minimal size of a tile: (\mw, \mh). 
+If for each $(i,j)$ the number of elements in $L_z(i,j).\textit{tiledata}$ is not greater than \capac, or, if $w \leq \mathcal{W}$ and $h \leq \mathcal{H}$, where $w$ ($h$) is the current tile width (correspondengly, height), then the second phase starts.
+
+    In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
 
 \subsection*{Second phase of tiling}
 
