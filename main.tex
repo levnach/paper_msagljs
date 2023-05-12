@@ -6,6 +6,8 @@
 \usepackage{svg}
 \usepackage[]{pdfpages}
 \usepackage[]{svg}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 
 \graphicspath{{./images/}}
 % \journal{Computational Geometry: Theory and Applications}
@@ -266,25 +268,21 @@ Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that
 
 \end{table}
 \section{Tiling}
-The algorithm works in three phases. The first phase builds the levels starting from the lowest level and proceeding to higher and more detailed levels, with smaller tiles, until no more tile subdivision is required. 
-
-The second phase processes the levels in the reverse order, by filtering the entities out to satisfy the capacity quota. 
-
-Finally, the third phase simplifies the edge routes to utilize the space freed by the filtered out entities.
+The algorithm works in three phases. The first phase builds the levels starting from the lowest level and proceeding to higher and more detailed levels, with smaller tiles, until no more tile subdivision is required. The second phase filters out the entities from the layers to satisfy the capacity quota. Finally, the third phase simplifies the edge routes to utilize the space freed by the filtered out entities.
 
 
-A tile, in our settings, is a pair $(\textit{rect, tiledata})$, where \textit{rect} is the rectangle of the tile and \textit{tiledata} is a set of elements visible in \textit{rect}. An  element could be a node, an edge label, an edge arrowhead, or a \textit{edge clip}. An edge clip is a pair $(e, p)$, where $e$ is an edge and $p$ is a continuous piece of the edge curve $c_e$. Sometimes we need several edge clips to trace an edge through a tile. 
+A tile, in our settings, is a pair $(\textit{rect, tiledata})$, where \textit{rect} is the rectangle of the tile and \textit{tiledata} is a set of \textit{tile elements} visible in \textit{rect}. A \textit{tile element} could be a node, an edge label, an edge arrowhead, or an \textit{edge clip}. An edge clip is a pair $(e, p)$, where $e$ is an edge and $p$ is a continuous piece of the edge curve $c_e$. Sometimes we need several edge clips to trace an edge through a tile. 
 
 
 The initial tile, the only tile on level $0$, is represented by pair $(0,0)$. For $z = 1$, there are four tiles: $(0,0),(0,1),(1,0)$, and $(1,1)$. Each tile $(i,j)$ can be subdivided into four subtiles for level $z+1$: $(2i,2j),(2i,2j+1), (2i+1,2j)$, and $(2i+1,2j+1)$.
 
 Each $z$-level is represented by a map $L_z$, so $L_z(i, j)$ gives us a specific tile. Empty tiles correspond to undefined $L_z(i, j)$.
 
-Edge clips are used to represent the edge intersections with the tiles and provide the renderer with the minimal geometry that is sufficient to render a tile. To ensure this we require property $\mathcal{F}$: 
+We use edge clips to represent the edge intersections with the tiles and provide the renderer with the minimal geometry that is sufficient to render a tile. To achieve this we require property $\mathcal{F}$: 
 
-a) For each tile $t$, for each curve clip $(e,p) \in t.\textit{tiledata}$, $p \subset t.rect$ and $p$ might cross the boundary of the $t.rect$ only at endpoints of $p$.
+a) For each tile $t$, for each curve clip $(e,p) \in t.\textit{tiledata}$, we have: $p \subset t.rect$ and $p$ might cross the boundary of the $t.rect$ only at endpoints of $p$.
 
-b) For each edge $e$, the union of all $p$ for all $(e,p) \in t.\textit{tiledata}$ is equal to $c_e \cap t.rect$.
+b) For each edge $e$ we have : the union of all $p$ for all $(e,p) \in t.\textit{tiledata}$ is equal to $c_e \cap t.rect$.
 
 \subsection*{First phase of tiling}
 
@@ -310,12 +308,27 @@ If for each $(i,j)$ the number of elements in $L_z(i,j).\textit{tiledata}$ is no
 
     In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
 \subsubsection*{Edge bundling}
-In our settings each edge clip is uniquely defined, module direction, by its start and end point. We can use this property to bundle the edges. In each tile we keep a map from unordered pairs of points to the set of edge clips that have these points as start and end points. Each such pair defines an edge bundle. For all edge clips in a bundle we create only one curve segment, avoiding the expensive trimming. We alse count a bundle as one element in the tile capacity quota, as in most of the cases the drawing attributes of the edges in the bundle are the same.
+In our settings each edge clip is uniquely defined, module direction, by its start and end point. We can use this property to bundle the edges. In each tile we keep a map from unordered pairs of points to the set of edge clips that have these points as start and end points. Each such pair defines an edge bundle. For all edge clips in a bundle we create only one curve segment, avoiding the expensive trimming. We alse count a bundle as one element in the tile, as in most of the cases the drawing attributes of the edges in the bundle are the same.
 
 In our experiments, the number of edge bundles is about 50\% of the number of edge clips, so the edge bundling is a significant optimization.
 
 \subsection*{Second phase of tiling}
-
+The second phase of tiling filters out the entities from the lower layers. We do not change the highest, the most detailed layer. 
+We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank}. For each layer $L$, except of the highest, we proceed as follows. 
+%write pseudo code
+\begin{algorithm}
+\begin{algorithmic}[1]
+\Procedure{filter}{$L$}
+\State $r \gets$~\textit{removeEntities}($L$)
+\ForAll{$n$ \textbf{in} $N$}
+\If{!\textit{addNodeToLayer}($n, r, N$)}  
+{break} 
+\EndIf
+\EndFor
+\EndProcedure
+\end{algorithmic}
+\end{algorithm}\\
+Here removeEntities}($L$) empties all the tiles of layer $L$, but returns map $r$ allowing to restore the tiles. The function returns false and does not change $L$ when one of the tiles intersecting $n$ already has more elements than \capac. Otherwise, the function adds $n$ to all tiles intersected by $n$. It also adds the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes appearing in $N$ before $n$, i.e. the nodes with the rank not lesser than the rank of $n$. 
 
 \bibliography{main}
 \bibliographystyle{ieeetr}
