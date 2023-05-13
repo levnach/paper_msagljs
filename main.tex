@@ -332,7 +332,7 @@ Here removeEntities}($L$) empties all the tiles of layer $L$, but returns map $r
 
 This procedure guarantees that each tile of $L$ has no more than \capac~nodes, but a tile can have more than \capac~ elements in general.
 \subsection*{Third phase of tiling}
-In the third phase we use a fact that some nodes are not present on the layer. For all layers except of the highest we reroute the edges but only around the nodes that are present it the layer. We do not calculate edge routes from scratch, but use the existing routes and only apply the "funnel" heuristic in larger channels.
+In the third phase we use a fact that some nodes are not present on the layer. For all layers, except of the highest, we reroute the edges but only around the nodes that are present it the layer. We do not calculate edge routes from scratch, but use the existing routes and only apply the "funnel" heuristic in larger channels.
 This gives us simpler edge routes but still has a visual stability during the layer change while browsing.
 
 \section{Future work}
