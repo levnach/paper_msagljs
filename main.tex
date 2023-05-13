@@ -328,8 +328,17 @@ We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank
 \EndProcedure
 \end{algorithmic}
 \end{algorithm}\\
-Here removeEntities}($L$) empties all the tiles of layer $L$, but returns map $r$ allowing to restore the tiles. The function returns false and does not change $L$ when one of the tiles intersecting $n$ already has more elements than \capac. Otherwise, the function adds $n$ to all tiles intersected by $n$. It also adds the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes appearing in $N$ before $n$, i.e. the nodes with the rank not lesser than the rank of $n$. 
+Here removeEntities}($L$) empties all the tiles of layer $L$, but returns map $r$ allowing to restore the tiles. Function \textit{addNodeToLayer}($n$) returns false and does not change $L$ when one of the tiles intersecting $n$ already has more elements than \capac. Otherwise, the function adds $n$ to all tiles intersected by $n$. It also adds the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes appearing in $N$ before $n$, i.e. the nodes with the rank not lesser than the rank of $n$.
 
+This procedure guarantees that each tile of $L$ has no more than \capac~nodes, but a tile can have more than \capac~ elements in general.
+\subsection*{Third phase of tiling}
+In the third phase we use a fact that some nodes are not present on the layer. For all layers except of the highest we reroute the edges but only around the nodes that are present it the layer. We do not calculate edge routes from scratch, but use the existing routes and only apply the "funnel" heuristic in larger channels.
+This gives us simpler edge routes but still has a visual stability during the layer change while browsing.
+
+\section{Future work}
+\begin{itemize}
+\item Find a tiling method that guarantees that each tile has no more than \capac~elements. One approach could be to use a more aggressive edge bundling to reduce the number of edge clips in the tiles.
+\end {itemize}
 \bibliography{main}
 \bibliographystyle{ieeetr}
 \end{document}
