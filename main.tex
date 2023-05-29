@@ -44,41 +44,30 @@
 \begin{document}
 
 
-\title{Browsing large graphs with MSAGLJS, a graph draph drawing tool in JavaScript }
+\title{Browsing large graphs with XJS, a graph drawing tool in JavaScript }
 \author{%
-  Lev Nachmanson  \and
-  Xiaoji Chen
+  auth0  \and
+  auth1
 }%
 \institute{
-  Microsoft Research, US,\\
-  \email{levnach@hotmail.com, cxiaoji@gmail.com},\\
-  Msagljs github home page:
-  \texttt{https://github.com/microsoft/msagljs}
+  Institute, US,\\
+  \email{auth0@hotmail.com, auth1@gmail.com},\\
+  X github home page:
+  \texttt{https://github.com/X}
 }
 \maketitle
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds.
-  However, if we request that the node labels are rendered, and the edges are routed
-  around the nodes, then the problem is still standing.
-  Interacting with a large graph in an Internet browser with
-  the same ease as browsing an online map, inspecting the high level structure and zooming in
-  to the high level detail, is still a challenging task.
+  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels are visible, and the edges are routed around the nodes, then the problem remains difficult. Interacting with a large graph in an Internet browser with the same ease as browsing an online map is still a challenging task.
+In this paper we describe a few novel approaches to large graph visualization that we developed in an open-source JavaScript software.
 
-  In this paper we describe novel approaches to several aspects of this problem.
+We give a new efficient edge routing algorithm, where the edges are routed around the nodes. The algorithm produces edge paths which are visually appealing and shortest in their homotopy class.
 
-  We give a new efficient algorithm for edge routing, where the edges are routed around the nodes. 
-  The algorithm produces edge paths which are visually appealing and optimal in their homotopy class.
+To facilitate graph visualization with WebGL, or any other platform supporting tiles, we propose a new simple and efficient tiling method. The method guarantees that in every view, except of the highest level, the number of visible entities per tile is not larger than a predefined bound.
 
-  To facilitate graph visualization with DeckGL, or any other viewer supporting tiles, 
-  we propose a new simple and fast tiling method. The method guarantees that in every view, 
-  except of the highest layer, the number of visible nodes per tile is not larger than a predefined bound.
+We make the node labels of the most important nodes of the current view visible.
 
-  Our method provides a high level overview of the graph, with the gradual increase of the detail level. 
-  We make the node labels of the most important nodes for the current view visible.
-
-  The edge routing algorithm mentioned above is reused at the tiling stage to simplify
-   the paths on the lower levels. In addition, we bundle edges per-tile as an optimization heuristic
+The edge routing algorithm mentioned above is reused at the tiling stage to simplify the paths on the lower levels. 
 \end{abstract}
 
 
@@ -95,7 +84,7 @@ There has been progress in visualization of large graphs recently. Tools appeare
 
 We propose a novel and efficient algorithm for edge routing, where each edge can only intersect its source or target. The algorithm produces edge paths which are visually appealing and even optimal in their homotopy class.
 
-To facilitate graph visualization with DeckGL, we propose a new simple and fast tiling method. The method guarantees that in every view,
+To facilitate graph visualization with WebGL, we propose a new simple and fast tiling method. The method guarantees that in every view,
 except of the views of the Shighest layer, the number of visible entities is not larger than a
 predefined bound. The method can be used in other viewers that support tiling.
 
@@ -151,7 +140,7 @@ machines.
 
 
 
-\section*{Edge routing in MSAGLJS}
+\section*{Edge routing in XJS}
 The edge routing starts, as in~\cite{dwyer2010fast}, by building a spanner graph, an approximation of the full visibility graph, and then finding shortest paths on the spanner. The spanner, see Fig~\ref{fig:spanner}, is built on a variation of a Yao graph, which was introduced independently by Flinchbaugh and Jones~\cite{flinchbaugh1981strong}  and Yao~\cite{yao1982constructing}. This kind of graph is defined by the set of cones with the apices at the vertices. The cones have the same angle,
 usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number.  The family of cones with the apex at a specific vertex partition the plane as illistrated in Fig.~\ref{fig:yao}. For each cone at most one edge is created connecting the cone apex with a vertex inside of the cone, so the graph has $O(n)$ edges where $n$ is the number of vertices. \\
 \begin{figure}[]
@@ -165,7 +154,7 @@ usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number.  The fa
   \begin{minipage}[b]{\textwidth}
     \includesvg[width=\textwidth]{visibility_graph.svg}
     \caption{\small{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the former. \\
-        The edge marked by the circles is created because the top vertex is inside of the cone and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore, the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}{6})} \simeq 1.155$.}
+        The edge marked by the circles is created because the top vertex is inside of the cone and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\XJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore, the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}{6})} \simeq 1.155$.}
     }
     \label{fig:spanner}
   \end{minipage}
@@ -175,7 +164,7 @@ The approach of~\cite{dwyer2010fast} applies local optimizations to shorten an e
 Namely, it tries to shortcut one vertex at a time from the path, as illustrated in Fig~\ref{fig:shortcut}.
 To smoothen a path, it fits Bezier segments into the polyline corners by
 using a binary search to find a larger fitting segment, see Fig~\ref{fig:cornerfit}.
-While anylyzing performance of the edge routing in MSAGLJS,
+While anylyzing performance of the edge routing in XJS,
 we noticed, that for a graph with more than 1k nodes these heuristics
 sometime create a performance bottleneck, in spite of using R-Trees\cite{guttman1984r}.
 \begin{figure}[!tbp]
@@ -262,7 +251,13 @@ In Fig.~\ref{fig:improved_routing} we compare the paths generated by the old and
 \end{figure}
 
 
-Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that the older approach outperforms the new one on the smaller graphs; those with the number of nodes under 2000. The new method is faster on the rest of the graphs. We still prefer to use the new method independently of the graph size since the slowdown is insignificant, under half of a second in our experiments, but the quality of the paths is better. On the larger graphs the new method runs faster and produces better paths, so it is an obvious choice.
+Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that the older approach outperforms the new one on the smaller graphs; 
+those with the number of nodes under 2000. The new method is faster on the rest of the graphs. 
+We still prefer to use the new method independently of the graph size since the slowdown is insignificant, but the quality of the paths is better. 
+On the larger graphs the new method runs faster and produces better paths, so it is an obvious choice.
+To load a large graph, for example, deezer\_europe\_edges~\cite{feather}, we start Edge or Chrome with an option that increases the memory limit
+of their process: -- max\_old\_space\_size=8192.
+
 \begin{table}
   \begin{center}
     \begin{tabular}{||c |c| c| c| c||}
@@ -275,15 +270,15 @@ Our performance experiments are summarized in Table.~\ref{tab:perf}. We see that
       \hline
       b100~\cite{b100}                        & 1463  & 5806   & 5.6               & 5.785    \\
       \hline
-      composers~\cite{composers}              & 3405  & 13832  & 510.5             & 17.5     \\
+      composers~\cite{composers}              & 3405  & 13832  & 510.5             & 20.3     \\
       \hline
-      p2p-Gnutella04~\cite{gnutella}          & 10876 & 39994  & 375.4             & 293.8    \\
+      p2p-Gnutella04~\cite{gnutella}          & 10876 & 39994  & 375.4             & 304.2    \\
       \hline
-      facebook\_combined~\cite{fb}            & 4039  & 88234  & 132.2             & 119.1    \\
+      facebook\_combined~\cite{fb}            & 4039  & 88234  & 132.2             & 123.7    \\
       \hline
-      lastfm\_asia\_edges~\cite{feather}      & 7626  & 27807  & 43.3              & 41.4     \\
+      lastfm\_asia\_edges~\cite{feather}      & 7626  & 27807  & 43.3              & 54.7     \\
       \hline
-      deezer\_europe\_edges~\cite{feather}    & 28283 & 92753  & 1596.9            & 1209.3   \\
+      deezer\_europe\_edges~\cite{feather}    & 28283 & 92753  & 1596.9            & 1402.6   \\
       \hline
       ca-HepPh~\cite{leskovec2007graph}       & 12008 & 237010 & 521.2             & 495.0    \\
       \hline
