@@ -59,7 +59,7 @@
 
 \begin{abstract}
   There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels are visible, and the edges are routed around the nodes, then the problem remains difficult. Interacting with a large graph in an Internet browser with the same ease as browsing an online map is still a challenging task.
-In this paper we describe a few novel approaches to large graph visualization that we developed in an open-source JavaScript software.
+In this paper we describe a few novel approaches to large graph visualization that we developed in open-source JavaScript software.
 
 We give a new efficient edge routing algorithm, where the edges are routed around the nodes. The algorithm produces edge paths which are visually appealing and shortest in their homotopy class.
 
@@ -74,31 +74,29 @@ The edge routing algorithm mentioned above is reused at the tiling stage to simp
 \section*{Introduction}
 
 \label{sec:intro}
-
+Our software is open source, it is represented by a set of NPM packages. 
+It runs on the client desktop or on a phone, and renders the graph in an Internet browser.
 We target large but not huge graphs. The maximum number of vertices of the graphs we applied our tool at was 28k, 
-and the maximum number of the edges was 237k. There are quite a few algorithms that calculate node positions for such graphs, and work very fast~\cite{hu2015visualizing,brandes2007eigensolver}. We look at the node layout, that is an algorithm that only positions the nodes of a graph and does not calculate the edge routes, as a solved problem.
+and the maximum number of the edges was 237k. 
 
-In the first part of the paper we address edge routing where an edge does not intersects the nodes it is not adjacent to. Our approach works for any node layout, as long it does not produce node overlaps.
-We build on the edge routing from~\cite{dwyer2010fast} and improve it.
-There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, the situatiton changes if we request that the node labels are rendered, and the edges overlap only the nodes they are adjacent to. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
+The algorithms described below were discovered while we programmed our tool. We believe these 
+algorithms can be useful to other developers as well. The findings seemed to us interesting 
+ enough to put them into a paper. 
 
-We propose a novel and efficient algorithm for edge routing, where each edge can only intersect its source or target. The algorithm produces edge paths which are visually appealing and even optimal in their homotopy class.
+The paper has sections Introduction, Related Work, Edge routing in XJS, Tiling, and Future work.
 
-To facilitate graph visualization with WebGL, we propose a new simple and fast tiling method. The method guarantees that in every view,
-except of the views of the Shighest layer, the number of visible entities is not larger than a
-predefined bound. The method can be used in other viewers that support tiling.
+%Our tool has several layout methods, but we do not describe them here. It is important that they work fast and produce outputs without node overlaps.
 
-Our method provides a high level overview of the graph.
+%We describe our edge routing algorithm first, and then discuss the tiling method.
+%Our edge routing starts on the method of~\cite{dwyer2010fast} and improves it.
 
-The edge routing algorithm mentioned above is reused at the tiling stage 
-to simplify the paths on the lower levels. In addition, we bundle edges per-tile as an optimization heuristic.
-Our software runs calculations on the client desktop or a phone, and renders the graph in the browser.
-\section*{Related work}
-A popular graph drawing tool Graphviz~\cite{graphviz} applies
+% %In addition, we bundle edges per-tile as an optimization heuristic.
+Let us start with a short review of some relevant to us publications.
+\section*{Related work}\label{relwork}
+A popular graph drawing tool Graphviz~\cite{graphviz} applies method
 Scalable Force-Directed Placement~\cite{sfdp} for large graphs, with no
-support for tiling. Its edge routing for this case builds the whole
-visibility graph. This can be very slow because the visibility graph can have $O(n^2)$ edges,
-where $n$ is the number of the nodes in the graph.
+support for tiling. Its edge routing for this method builds the whole
+visibility graph and routes edges on it. This can be very slow because the visibility graph can have $O(n^2)$ edges, where $n$ is the number of the nodes in the graph.
 Interestingly, the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing},
 the last step of our approach, is used in Graphviz for the edge routing in the
 Sugiyama layout. We are not aware of any tool that integrates Graphviz
@@ -129,12 +127,12 @@ handle a graph with a million nodes. It renders edges as straight lines.
 It does not support tiling.
 
 The authors of~\cite{nachmanson2015graphmaps} implemented GraphMaps, a tool for large graph visualization. 
-The tool only ran in Windows. The edge were routed as polylines on a triangulation. 
+The tool only runs on Windows. The edge were routed as polylines on a triangulation and were not optimized. 
 The tool supported tiling, but the problem of the limiting number of visible entities was not solved.
 
 In~\cite{perrot2018cornac} an approach to visualize a huge graph is described. The method uses tiles and
 edge bundling following~\cite{hurter2012graph}, which is applied at the last moment during the the graph browsing.
-The latter calculation is done on the client side, the rest and the majority of the calculations runs on several servers.
+The latter calculation is done on the client side. The rest and the majority of the calculations runs on several servers.
 
 
 
@@ -153,7 +151,7 @@ usually in the form of $\frac{2\pi} {n}$, where $n$ is a natural number.  The fa
   \begin{minipage}[b]{\textwidth}
     \includesvg[width=\textwidth]{visibility_graph.svg}
     \caption{\small{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the former. \\
-        The edge marked by the circles is created because the top vertex is inside of the cone and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\XJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore, the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}{6})} \simeq 1.155$.}
+        The edge marked by the circles is created because the top vertex is inside the cone, and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\XJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore, the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}{6})} \simeq 1.155$.}
     }
     \label{fig:spanner}
   \end{minipage}
@@ -163,7 +161,7 @@ The approach of~\cite{dwyer2010fast} applies local optimizations to shorten an e
 Namely, it tries to shortcut one vertex at a time from the path, as illustrated in Fig~\ref{fig:shortcut}.
 To smoothen a path, it fits Bezier segments into the polyline corners by
 using a binary search to find a larger fitting segment, see Fig~\ref{fig:cornerfit}.
-While anylyzing performance of the edge routing in XJS,
+While analyzing performance of the edge routing in XJS,
 we noticed, that for a graph with more than 1k nodes these heuristics
 sometime create a performance bottleneck, in spite of using R-Trees\cite{guttman1984r}.
 \begin{figure}[!tbp]
@@ -181,9 +179,9 @@ sometime create a performance bottleneck, in spite of using R-Trees\cite{guttman
   \end{minipage}
 \end{figure}
 \\
-In addition, when the naive shortcutting of polyline corners fails,  the resulting path might remain not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
+In addition, when the naive shortcutting of polyline corners fails, the resulting path might remain not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 
-We replace these heuristics with a more precize and efficient optimization described below.
+We replace these heuristics with a more precise and efficient optimization described below.
 \subsection*{Path optimization} {
 We finalize edge routes by the “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}, routing a path inside a simple polygon, that is a polygon without holes.
 
