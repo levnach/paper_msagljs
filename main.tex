@@ -78,7 +78,7 @@ The edge routing algorithm mentioned above is reused at the tiling stage to simp
 We target large but not huge graphs. The maximum number of vertices of the graphs we applied our tool at was 28k, 
 and the maximum number of the edges was 237k. There are quite a few algorithms that calculate node positions for such graphs, and work very fast~\cite{hu2015visualizing,brandes2007eigensolver}. We look at the node layout, that is an algorithm that only positions the nodes of a graph and does not calculate the edge routes, as a solved problem.
 
-In the first part of the paper we address edge routing where an edge does not intersects the nodes it is not adjacent to. Our approach works for any node layout, as long id does note produce node overlaps.
+In the first part of the paper we address edge routing where an edge does not intersects the nodes it is not adjacent to. Our approach works for any node layout, as long it does not produce node overlaps.
 We build on the edge routing from~\cite{dwyer2010fast} and improve it.
 There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, the situatiton changes if we request that the node labels are rendered, and the edges overlap only the nodes they are adjacent to. Interacting with a large graph in an Internet browser with the same ease as browsing an online map, inspecting the high level structure and zooming in to the high level detail, is still an unsolved problem. In this paper we describe novel approaches to several aspects of this problem.
 
