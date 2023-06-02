@@ -330,7 +330,7 @@ A possible optimization here is to find the repeated segments in the edge curves
 while routing through the same graph with the same algorithm, and reuse the repeated segment to save memory and to avoid the same calculation in edge clipping.
 
 \subsection*{Second phase of tiling}
-The second phase of tiling filters out the entities from the lower levels. We do not change the highest, the most detailed level.
+In this phase, some entities from the lower levels are filtered out. We do not change the highest, the most detailed level.
 We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank}. For each level $L$, except of the highest, we proceed as follows.
 %write pseudo code
 \begin{algorithm}
@@ -345,7 +345,8 @@ We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank
     \EndProcedure
   \end{algorithmic}
 \end{algorithm}\\
-Here removeEntities}($L$) empties all the tiles of level $L$, and returns map $r$ allowing to restore the tiles. Function \textit{addNodeToLevel}($n$) tries to add the node to $L$, it also tries to add the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes ranked at least as high as $n$. These nodes are the nodes already added to $L$.
+Here removeEntities}($L$) empties all the tiles of level $L$, and returns map $r$ allowing to restore the tiles.
+Map $r$ maps each graph element to an array of tile elements representing it in $L$. Function \textit{addNodeToLevel}($n$) tries to add node $n$ to $L$, it also tries to add the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes ranked at least as high as $n$. These nodes are the nodes already added to $L$.
 
 This procedure guarantees that each tile of $L$ has no more than \capac~elements.
 \subsection*{Third phase of tiling}
@@ -356,10 +357,10 @@ This gives us simpler edge routes but still has the visual stability during the 
 \begin{itemize}
 \item Find a tiling method that guarantees that each tile has no more than \capac~elements on every level. One approach could be to use a more aggressive, and regular edge bundling to reduce the number of edge clips in the tiles.
 \item
-Our tile calculation is memory intensive and take a long time for larger graphs.
+Our tile calculation is memory intensive and takes a long time for larger graphs.
 The largest graph from the Table~\ref{tab:perf} that we were able to load with Chrome, and Edge using the tiling procedure was p2p-Gnutella04~\cite{gnutella}. One of the reasons was the memory limit on a process in those browsers, another was the long running-time of the tiling procedure. A possible measure would be saving the tiles to the disk and loading them on demand.
 \item
-For the user convenience we would like to run the layout, routing, and tiling in a worker thread to avoid blocking the main thread.
+For the user convenience we would like to run the layout, routing, and tiling, in a worker thread to avoid blocking the main thread.
 \item
 Addressing node labels visibility is an important task.
 We would like to enlarge the most important nodes of the view so that their labels are readable.
