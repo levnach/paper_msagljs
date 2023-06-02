@@ -297,21 +297,21 @@ Each $z$-level is represented by a map $L_z$, so $L_z(i, j)$ gives us a specific
 
 We use edge clips to represent the edge intersections with the tiles and provide the renderer with the minimal geometry that is sufficient to render a tile. To achieve this we require property $\mathcal{F}$:
 
-a) For each tile $t$, for each curve clip $(e,p) \in t.\textit{tiledata}$, we have: $p \subset t.rect$ and $p$ might cross the boundary of the $t.rect$ only at endpoints of $p$.
+a) For each tile $t$, for each edge clip $(e,p) \in t.\textit{tiledata}$, we have: $p \subset t.rect$ and $p$ might cross the boundary of the $t.rect$ only at endpoints of $p$.
 
 b) For each edge $e$ we have : the union of all $p$ for all $(e,p) \in t.\textit{tiledata}$ is equal to $c_e \cap t.rect$.
 
 \subsection*{First phase of tiling}
 
-The first phase starts with $L_0 = \{(0,0) \rightarrow (\textit{rect},\textit{tiledata})\}$: and \textit{tiledata} comprising curve clips $(e,c_e)$, for all edges $e$ of the graph, all graph nodes, all edge labels, and all edge arrowheads. We ensure property $\mathcal{F}$ by setting \textit{rect} to a padded bounding box of the graph, so each edge curve does not intersect the boundary of \textit{rect}.
+The first phase starts with $L_0 = \{(0,0) \rightarrow (\textit{rect},\textit{tiledata})\}$: and \textit{tiledata} comprising edge clips $(e,c_e)$, for all edges $e$ of the graph, all graph nodes, all edge labels, and all edge arrowheads. We ensure property $\mathcal{F}$ by setting \textit{rect} to a padded bounding box of the graph, so each edge curve does not intersect the boundary of \textit{rect}.
 
 Let us assume that $L_z$ is already constructed and $\mathcal{F}$ holds for its tiles. To build level $L_{z+1}$ we divide each tile $t=L_z(i, j)$ into four sub-tiles of equal size. For each node, arrowhead, or edge label of $t.\textit{tiledata}$, if the bounding box of the element intersects the sub-tile's rectangle then we add the element to the sub-tile \textit{tiledata}.
 
-The edge clip treatment is more involved. Let $(e, p)$ be a curve clip belonging to tile $t$. We find all intersections of curve $p$ with the horizontal midline and the vertical midline of $t.\textit{rect}$. Each intersection can be represented as $p[t_j]$. We sort sequence $u =[start, \dots, t_j, \dots, end]$, where $[start,end]$ is the parameter domain of $p$, in ascending order, and remove the duplicates.
+The edge clip treatment is more involved. Let $(e, p)$ be an edge clip belonging to tile $t$. We find all intersections of curve $p$ with the horizontal midline and the vertical midline of $t.\textit{rect}$. Each intersection can be represented as $p[t_j]$. We sort sequence $u =[start, \dots, t_j, \dots, end]$, where $[start,end]$ is the parameter domain of $p$, in ascending order, and remove the duplicates.
 
-Next we create curve clips $(e, l_k)=(e, \textit{trim}(p, u_k, u_{k+1}))$, as shown in Fig~\ref{fig:clip}. We assign each curve clip $(e,l_k)$ to the sub-tile with the rectangle containing the bounding box of $l_k$.
+Next we create edge clips $(e, l_k)=(e, \textit{trim}(p, u_k, u_{k+1}))$, as shown in Fig~\ref{fig:clip}. We assign each edge clip $(e,l_k)$ to the sub-tile with the rectangle containing the bounding box of $l_k$.
 
-Because, by the induction assumption property $\mathcal{F}$ is true on $L_z$, and by construction, each new curve clip can cross the boundary of the sub-tile only at the clip endpoints. We also cover all the intersections of $p$ with the sub-tiles with the new edge clips, so the property $\mathcal{F}$ holds for $L_{z+1}$.
+Because, by the induction assumption property $\mathcal{F}$ is true on $L_z$, and by construction, each new edge clip can cross the boundary of the sub-tile only at the clip endpoints. We also cover all the intersections of $p$ with the sub-tiles with the new edge clips, so the property $\mathcal{F}$ holds for $L_{z+1}$.
 \begin{figure}[!tbp]
   \centering
   \includegraphics[width=\textwidth/2]{./edge_clips.png}
@@ -326,8 +326,8 @@ If for each $(i,j)$ the number of elements in $L_z(i,j).\textit{tiledata}$ is no
 In our setting \capac~$=500$, and $(\mathcal{W},\mathcal{H}) = 3(w,h)$, where $w$ is the average width and $h$ is the average height of the nodes of the graph.
 
 For efficiency, we do not create a new curve in an edge clip but keep two parameters indicating the clipped segment start and end.
-Another optimization here is finding the repeated segments in the edge curves that naturally appear
-while routing through the same graph with the same algorithm, and reuse the repeated segment to save memory.
+A possible optimization here is to find the repeated segments in the edge curves that naturally appear
+while routing through the same graph with the same algorithm, and reuse the repeated segment to save memory and to avoid the same calculation in edge clipping.
 
 \subsection*{Second phase of tiling}
 The second phase of tiling filters out the entities from the lower levels. We do not change the highest, the most detailed level.
@@ -345,11 +345,11 @@ We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank
     \EndProcedure
   \end{algorithmic}
 \end{algorithm}\\
-Here removeEntities}($L$) empties all the tiles of level $L$, but returns map $r$ allowing to restore the tiles. Function \textit{addNodeToLevel}($n$) tries to add the node to $L$, it also tries to add the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes ranked at least as high as $n$. These nodes are the nodes already added to $L$.
+Here removeEntities}($L$) empties all the tiles of level $L$, and returns map $r$ allowing to restore the tiles. Function \textit{addNodeToLevel}($n$) tries to add the node to $L$, it also tries to add the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes ranked at least as high as $n$. These nodes are the nodes already added to $L$.
 
 This procedure guarantees that each tile of $L$ has no more than \capac~elements.
 \subsection*{Third phase of tiling}
-In the third phase we use a fact that some nodes are not present on the level. For all levels, except of the highest, we reroute the edges but only around the nodes that are present in the level. We do not calculate edge routes from scratch, but use the existing routes and only apply the "funnel" heuristic in larger channels.
+In the third phase we use the fact that some nodes are not present on the level. For all levels, except of the highest, we reroute the edges but only around the nodes that are present in the level. We do not calculate edge routes from scratch, but use the existing routes and only apply the "funnel" heuristic in larger channels.
 This gives us simpler edge routes but still has the visual stability during the level change while browsing.
 
 \section{Future work}
