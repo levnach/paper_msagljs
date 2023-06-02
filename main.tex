@@ -358,8 +358,8 @@ Cite some papers on label positioning. %find citatitons
 A simple idea is finding the repeated segments in the edge curves that naturally appear
 while routing through the same graph with the same algorithm, and reuse the repeated segment to save memory.
 \item 
-The tile calculation is memory intensive.
-The largest graph from the table~\ref{tab:perf} that we were able to load with Chrome, and Edge using the tiling procedure was ~\cite{gnutella}. One of the reasons was the memory limit on a process in those browsers, another was the long running-time of the tiling procedure. A possible measure would be saving the tiles to the disk and loading them on demand.
+Our tile calculation is memory intensive and take a long time for larger graphs.
+The largest graph from the Table~\ref{tab:perf} that we were able to load with Chrome, and Edge using the tiling procedure was p2p-Gnutella04~\cite{gnutella}. One of the reasons was the memory limit on a process in those browsers, another was the long running-time of the tiling procedure. A possible measure would be saving the tiles to the disk and loading them on demand.
 \item
 For the user convenience we would like to run the layout, routing, and tiling in a worker thread to avoid blocking the main thread. 
 \end {itemize}
