@@ -69,7 +69,7 @@
 \end{abstract}
 
 
-\section*{Introduction}
+\section{Introduction}
 
 \label{sec:intro}
 Our software is open source written in TypeScript, it is consumed as a set of NPM packages.
@@ -82,7 +82,7 @@ The methods and algorithms described below are implemented in XJS.
 The rest of the paper is divided into sections, including Related Work, Edge routing, Tiling, Conclusion, and Future work.
 
 Let us start with a short review of some relevant to us publications.
-\section*{Related work}\label{relwork}
+\section{Related work}\label{relwork}
 A popular graph drawing tool Graphviz~\cite{graphviz} applies method
 Scalable Force-Directed Placement~\cite{sfdp} for large graphs, with no
 support for tiling. The edge routing for this method builds the whole
@@ -176,7 +176,7 @@ using a binary search to find a large fitting segment, see Fig~\ref{fig:cornerfi
 \\
 We noticed that when the shortcutting of polyline corners fails, the resulting path might remain not visually appealing, as shown in Fig.~\ref{fig:shortcut}.
 We replace the shortcutting with a more precise, but still efficient optimization described below: that is one of the main contributions of our work.
-\subsection*{Path optimization} {
+\subsection{Path optimization} {
 We finalize edge routes by a slight modification of the “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}, routing a path inside a simple polygon, that is a polygon without holes.
 
 An application of the 'path in a simple polygon' optimization to edge routing is not a new idea: the novelty of our work is in how we find the polygon and how we use it.
@@ -293,7 +293,7 @@ a) For each tile $t$, for each edge clip $(e,p) \in t.\textit{tiledata}$, we hav
 
 b) For each edge $e$ we have : the union of all $p$ for all $(e,p) \in t.\textit{tiledata}$ is equal to $c_e \cap t.rect$.
 
-\subsection*{First phase of tiling}
+\subsection{First phase of tiling}
 
 The first phase starts with $L_0 = \{(0,0) \rightarrow (\textit{rect},\textit{tiledata})\}$: and \textit{tiledata} comprising edge clips $(e,c_e)$, for all edges $e$ of the graph, all graph nodes, all edge labels, and all edge arrowheads. We ensure property $\mathcal{F}$ by setting \textit{rect} to a padded bounding box of the graph, so each edge curve does not intersect the boundary of \textit{rect}.
 
@@ -322,7 +322,7 @@ For efficiency, we do not create a new curve in an edge clip but keep two parame
 A possible optimization here is to find the repeated segments in the edge curves that naturally appear
 while routing through the same graph with the same algorithm, and reuse the repeated segment to save memory and to avoid the same calculation in edge clipping.
 
-\subsection*{Second phase of tiling}
+\subsection{Second phase of tiling}
 In this phase we filter out some entities from the lower levels. We do not change the highest, the most detailed level.
 We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank}. For each level $L$, except of the highest, we proceed as follows.
 \begin{algorithm}
@@ -341,7 +341,7 @@ Here removeEntities}($L$) empties all the tiles of level $L$, and returns map $r
 Map $r$ maps each graph element to an array of tile elements representing it in $L$. Function \textit{addNodeToLevel}($n$) tries to add node $n$ to $L$, it also tries to add the tile elements for self edges of $n$, and the tile elements for the edges connecting $n$ with the nodes ranked at least as high as $n$. These nodes are the nodes already added to $L$.
 
 This procedure guarantees that each tile of $L$ has no more than \capac~elements.
-\subsection*{Third phase of tiling}
+\subsection{Third phase of tiling}
 In the third phase we use the fact that some nodes are not present on the level. For all levels, except of the highest, we reroute the edges but only around the nodes that are present in the level. We do not calculate edge routes from scratch, but use the existing routes and only apply the "funnel" heuristic in larger channels.
 This gives us simpler edge routes but still has the visual stability during the level change while browsing.
 \section{Conclusion}
