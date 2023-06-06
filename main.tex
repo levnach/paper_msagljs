@@ -325,7 +325,6 @@ while routing through the same graph with the same algorithm, and reuse the repe
 \subsection*{Second phase of tiling}
 In this phase, some entities from the lower levels are filtered out. We do not change the highest, the most detailed level.
 We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank}. For each level $L$, except of the highest, we proceed as follows.
-%write pseudo code
 \begin{algorithm}
   \begin{algorithmic}[1]
     \Procedure{filter}{$L$}
