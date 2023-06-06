@@ -77,9 +77,9 @@ It runs on the client desktop or on a phone, and renders the graph in a web brow
 We target large but not huge graphs. The maximum number of vertices of the graphs we applied our tool to was 28k,
 and the maximum number of the edges was 237k.
 
-We discovered the algorithms described below while studying the imperfections of the previous version of the tool. The findings seemed to us interesting enough to put them into a paper.
+The methods and algorithms described below are implemented in XJS.
 
-The rest of the paper is divided into sections, including Related Work, Edge routing in XJS, Tiling, Conclusion, and Future work.
+The rest of the paper is divided into sections, including Related Work, Edge routing, Tiling, Conclusion, and Future work.
 
 Let us start with a short review of some relevant to us publications.
 \section*{Related work}\label{relwork}
@@ -127,7 +127,7 @@ The latter calculation is done on the client side. The rest and the majority of 
 
 
 
-\section*{Edge routing in XJS}
+\section*{Edge routing}
 The user study of Xu et al~\cite{xu2012user} shows that straight edges improve the user comprehension of a graph drawing.
 From the other hand, Holten et al~\cite{holten2009user} show that strongly curved edges do not perform well in this regard.
 In our routing, we try to keep the edges as straight as possible, and to curve them just enough to avoid the nodes.
@@ -323,7 +323,7 @@ A possible optimization here is to find the repeated segments in the edge curves
 while routing through the same graph with the same algorithm, and reuse the repeated segment to save memory and to avoid the same calculation in edge clipping.
 
 \subsection*{Second phase of tiling}
-In this phase, some entities from the lower levels are filtered out. We do not change the highest, the most detailed level.
+In this phase we filter out some entities from the lower levels. We do not change the highest, the most detailed level.
 We sort the nodes of the graph into array $N$ by PageRank~\cite{page1999pagerank}. For each level $L$, except of the highest, we proceed as follows.
 \begin{algorithm}
   \begin{algorithmic}[1]
