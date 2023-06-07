@@ -58,14 +58,31 @@
 \maketitle
 
 \begin{abstract}
-  There has been progress in visualization of large graphs recently. Tools appeared that can render a huge graph in seconds. However, if we request that the node labels are readable, and the edges are routed around the nodes, then the problem remains difficult. Interacting with a large graph in a web browser with the same ease as browsing an online map is still a challenging task.
-  In this paper we describe a few novel approaches to large graph visualization that we developed in open-source JavaScript software.
+  We routinely use online maps on a phone or computer, where we usually browse a huge map. 
+  The online maps have efficient pan and zoom operations, 
+  and at each view we are not overwhelmed with the amount of information.
+  One of the main technologies allowing it is tiling: the tiles are carefully designed in advance,
+   and split into levels. They are loaded on demand from the server, or from the device.
+  
+  In contrast, browsing a large graph in this style is still a challenge, although some progress has been achieved.
+  The main difficulty here is the tiling calculation.
+   
 
-  We give a new efficient edge routing algorithm, where the edges are routed around the nodes. The algorithm produces edge paths which are visually appealing and shortest in their homotopy class.
+  In this paper we describe a few novel approaches to tiling for a large graph that we developed in XJS.
+  
+  Our first contribution is a new edge routing algorithm, where the edges are routed around the nodes. 
+  The algorithm produces edge paths which are visually appealing and shortest in their homotopy class.
+  This algorithm is used to calculate the edge routes on the most detailed tile level, 
+  and then it is reused to create simplified routes for lower levels.
+  
+   The second contribution is a tiling scheme with a new method of subdividing an 
+   edge into segments for the sub-tiles.
+   
+   XJS is open-source JavaScript software. With XJS one can browse a large, but not a huge, 
+   graph on a phone or computer, similar to browsing an online map.
+  
 
-  To facilitate graph visualization with WebGL, or any other platform supporting tiles, we propose a new simple and efficient tiling method. The method guarantees that in every view, except of the highest level, the number of visible entities per tile is not larger than a predefined bound.
-
-  The edge routing algorithm mentioned above is reused at the tiling stage to simplify the paths on the upper levels.
+  
 \end{abstract}
 
 
@@ -180,7 +197,7 @@ We replace the shortcutting with a more precise, but still efficient optimizatio
 We finalize edge routes by a slight modification of the “funnel” algorithm~\cite{chazelle1982theorem,hershberger1994computing}, routing a path inside a simple polygon, that is a polygon without holes.
 
 An application of the 'path in a simple polygon' optimization to edge routing is not a new idea: the novelty of our work is in how we find the polygon and how we use it.
-The authors of Graphvis used the 'funnel' algorithm~\cite{dobkin1997implementing}, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a
+The authors of Graphviz used the 'funnel' algorithm~\cite{dobkin1997implementing}, but only for hierarchical layouts, where a simple polygon, \plg, containing the path is available. They write: "If \plg~does not contain holes ... we can apply a
 standard “funnel” algorithm ... for finding Euclidean shortest paths in a simple polygon". In general case they build the visibility graph which is very expensive for a large graph.
 
 Here we find the polygon \plg~for any layout. We drop the requirement that \plg~is simple. Indeed, to run the “funnel” algorithm one only needs a “sleeve”: a sequence of triangles leading from the start to the end of the path, where each triangle shares a side with its successor. Let us show how to build polygon \plg, create a sleeve, and produce an optimized path.
