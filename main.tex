@@ -62,7 +62,7 @@
   The online maps have efficient pan and zoom operations, 
   and at each view we are not overwhelmed with the amount of information.
   One of the main technologies allowing it is tiling: the tiles are carefully designed in advance,
-   and split into levels. They are loaded on demand from the server, or from the device.
+   and split into levels. They are loaded on demand from the Internet, or from the device.
   
   In contrast, browsing a large graph in this style is still a challenge, although some progress has been achieved.
   The main difficulty here is the tiling calculation.
@@ -73,7 +73,7 @@
   Our first contribution is a new edge routing algorithm, where the edges are routed around the nodes. 
   The algorithm produces edge paths which are visually appealing and shortest in their homotopy class.
   This algorithm is used to calculate the edge routes on the most detailed tile level, 
-  and then it is reused to create simplified routes for lower levels.
+  and then it is reused to simplify routes for lower levels.
   
    The second contribution is a tiling scheme with a new method of subdividing an 
    edge into segments for the sub-tiles.
@@ -89,18 +89,25 @@
 \section{Introduction}
 
 \label{sec:intro}
-Our software is open source written in TypeScript, it is consumed as a set of NPM packages.
-It runs on the client desktop or on a phone, and renders the graph in a web browser.
-We target large but not huge graphs. The maximum number of vertices of the graphs we applied our tool to was 28k,
-and the maximum number of the edges was 237k.
+Our open-source software, XJS, is written in TypeScript 
+and is consumed as a set of NPM packages. It runs on client computers or phones and renders graphs in web browsers.
+We target large but not huge graphs.
 
-The methods and algorithms described below are implemented in XJS.
+The paper consists of two main sections. 
+The first section describes our edge routing algorithm that creates paths that are shortest in their homotopy class. 
+We measure the performance of our new edge routing algorithm on public benchmark sets and compare 
+it with the previous state-of-the-art routing algorithm. 
 
-The rest of the paper is divided into sections, including Related Work, Edge routing, Tiling, Conclusion, and Future work.
+The second section describes our new tiling method. The tiling algorithms allow loading graphs in a browser 
+with up to 10K nodes and 40K edges and interacting with them in the style of online maps.
 
-Let us start with a short review of some relevant to us publications.
+% The methods and algorithms described below are implemented in XJS.
+
+% The rest of the paper is divided into sections, including Related Work, Edge routing, Tiling, Conclusion, and Future work.
+
+% Let us start with a short review of some relevant to us publications.
 \section{Related work}\label{relwork}
-A popular graph drawing tool Graphviz~\cite{graphviz} applies method
+Popular graph drawing tool Graphviz~\cite{graphviz} applies method
 Scalable Force-Directed Placement~\cite{sfdp} for large graphs, with no
 support for tiling. The edge routing for this method builds the whole
 visibility graph and routes edges on it. This can be very slow because the visibility graph can have $O(n^2)$ edges, where $n$ is the number of the nodes in the graph.
