@@ -1,4 +1,4 @@
-\documentclass{gd-llncs}
+\documentclass{llncs}
 %\documentclass[preprint,3p,12pt]{elsarticle}
 
 \usepackage{graphicx}
@@ -32,7 +32,7 @@
 \newcommand{\inkcoeff}{k_{\textit{ink}}}
 \newcommand{\lencoeff}{k_{\textit{len}}}
 \newcommand{\capcoeff}{k_{\textit{cap}}}
-\DeclareMathOperator{\nul}{\textit{null}}
+%\DeclareMathOperator{\nul}{\textit{null}}
 \newcommand{\cdt}{$\mathcal{T}$}
 \newcommand{\unpath}{$\mathcal{L}$}
 \newcommand{\triset}{$\mathcal{U}$}
@@ -44,53 +44,34 @@
 \begin{document}
 
 
-\title{Browsing large graphs with XJS, a graph drawing tool in JavaScript }
+\title{New edge routing algorithm, and the tiling scheme in MSAGLJS}
 \author{%
-  auth0  \and
-  auth1
+  Lev Nachmanson \and
+  Xiaoji Chen
 }%
 \institute{
-  Institute, US,\\
-  \email{auth0@hotmail.com, auth1@gmail.com},\\
-  X github home page:
-  \texttt{https://github.com/X}
+  Microsoft Research, Redmond, US,\\
+  \email{levnach@hotmail.com,  cxiaoji@gmail.com},\\
+  MSAGLJS github page:
+  \texttt{https://github.com/microsoft/MSAGLJS}
 }
 \maketitle
 
 \begin{abstract}
-  We routinely use online maps on a phone or computer, where we usually browse a huge map. 
-  The online maps have efficient pan and zoom operations, 
-  and at each view we are not overwhelmed with the amount of information.
-  One of the main technologies allowing it is tiling: the tiles are carefully designed in advance,
-   and split into levels. They are loaded on demand from the Internet, or from the device.
+  One of the standard approaches to visualise a large amount of data with a computer is to present it with levels-of-details and use tiling, the way the online maps do. The tiles, often organized into a tree, are usually pre-calculated and dynamically loaded, according to the zoom level and the viewport. The root tile of the tree corresponds to the most simplified view, and the child tiles gradually give more details.
   
-  In contrast, browsing a large graph in this style is still a challenge, although some progress has been achieved.
-  The main difficulty here is the tiling calculation.
-   
+  The first contribution of the paper is the tiling scheme of MSAGLJS. In this scheme we limit the number of entities visible per tile, except of the most detailed tiles. 
+  
+  To simplify the edge routes as we move from the most detailed to the less-detailed levels, we use a novel edge routing algorithm: our second, and main, contribution. The algorithm is efficient and produces visually appealing paths. More specifically, it routes the edges around the nodes and produces the shortest paths in their homotopy class. The latter property gives us a rather smooth change of the edge routes between the levels.
 
-  In this paper we describe a few novel approaches to tiling for a large graph that we developed in XJS.
-  
-  Our first contribution is a new edge routing algorithm, where the edges are routed around the nodes. 
-  The algorithm produces edge paths which are visually appealing and shortest in their homotopy class.
-  This algorithm is used to calculate the edge routes on the most detailed tile level, 
-  and then it is reused to simplify routes for lower levels.
-  
-   The second contribution is a tiling scheme with a new method of subdividing an 
-   edge into segments for the sub-tiles.
-   
-   XJS is open-source JavaScript software. With XJS one can browse a large, but not a huge, 
-   graph on a phone or computer, similar to browsing an online map.
-  
-
-  
+  The third contribution is an efficient method finding the intersection of the edge path and the tile.
 \end{abstract}
 
 
 \section{Introduction}
 
 \label{sec:intro}
-Our open-source software, XJS, is written in TypeScript 
-and is consumed as a set of NPM packages. It runs on client computers or phones and renders graphs in web browsers.
+Our open-source software, MSAGLJS, is awailable at GitHub at the address shown under the title. It is written in TypeScript and is usually consumed as a set of NPM packages. MSAGLJS facilitates rendering graphs on client computers, or phones, by working in an Internet browser.
 We target large but not huge graphs.
 
 The paper consists of two main sections. 
@@ -101,7 +82,7 @@ it with the previous state-of-the-art routing algorithm.
 The second section describes our new tiling method. The method allows loading graphs in a browser 
 with up to 10K nodes and 40K edges and interacting with them in the style of online maps.
 
-% The methods and algorithms described below are implemented in XJS.
+% The methods and algorithms described below are implemented in MSAGLJS.
 
 % The rest of the paper is divided into sections, including Related Work, Edge routing, Tiling, Conclusion, and Future work.
 
@@ -151,7 +132,7 @@ The latter calculation is done on the client side. The rest and the majority of 
 
 
 
-\section*{Edge routing}
+\section{Edge routing}
 The user study of Xu et al~\cite{xu2012user} shows that straight edges improve the user comprehension of a graph drawing.
 From the other hand, Holten et al~\cite{holten2009user} show that strongly curved edges do not perform well in this regard.
 In our routing, we try to keep the edges as straight as possible, and to curve them just enough to avoid the nodes.
@@ -173,7 +154,7 @@ The family of cones with the apex at a specific vertex partition the plane, as i
   \begin{minipage}[b]{\textwidth}
     \includesvg[width=\textwidth]{visibility_graph.svg}
     \caption{\small{Spanner graph is built using the idea of Yao graphs. The dashed curves are the original node boundaries. Each original curve is surrounded by a polygon with some offset to allow the polyline paths smoothing without intersecting the former. \\
-        The edge marked by the circles is created because the top vertex is inside the cone, and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\XJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore, the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}{6})} \simeq 1.155$.}
+        The edge marked by the circles is created because the top vertex is inside the cone, and it is the closest among such vertices to the cone apex. The apex of the cone is the lower vertex of the edge. \\MSAGLJS uses cone angle $\frac{\pi}{6}$, so the edges of the spanner can deviate from the optimal direction by this angle. Therefore, the shortest paths on the spanner have length that is at most the optimal shortest length multiplied by $\frac{1}{\cos(\frac{\pi}{6})} \simeq 1.155$.}
     }
     \label{fig:spanner}
   \end{minipage}
@@ -255,7 +236,7 @@ The discussion~\cite{pathOpt} of the algorithm helped us in the implementation o
 \end{figure}
 Polygon \plg~is not necessarily simple, as shown in Fig.~\ref{fig:non_optimal_path}.
 In this example the path that we calculate with the funnel algorithm is not the shortest path inside \plg.
-\subsection*{Performance and quality comparison}
+\subsection{Performance and quality comparison}
 In Fig.~\ref{fig:improved_routing} we compare the paths generated by the old and the new method. We can see that the paths produced by the new method have no kinks. We also know that these paths are  the shortest in their 'channels'. Arguably, the new method produces better paths.
 \begin{figure}[]
   \centering
