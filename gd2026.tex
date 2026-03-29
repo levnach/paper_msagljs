@@ -149,6 +149,8 @@ The effect on the funnel is illustrated in Fig.~\ref{fig:channel_collapse}b. Bef
 
 A final arrowhead-trimming step clips the resulting path at the actual node boundary curves, so the visible edge begins and ends cleanly at each node's perimeter.
 
+Note that the collapsed channel is not guaranteed to be free of intersections with other obstacles: moving boundary vertices to the node center can cause the channel polygon to overlap nearby obstacles. In practice this rarely produces visible artifacts, since the funnel path stays close to the original free-space corridor and arrowhead trimming clips the endpoint segments. We accept this as a minor trade-off for the significant improvement in path smoothness near source and target nodes.
+
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.48\textwidth]{collapse_CATELYN_MAESTER_LUWIN_before.pdf}%
