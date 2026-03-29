@@ -151,8 +151,12 @@ A final arrowhead-trimming step clips the resulting path at the actual node boun
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.6\textwidth]{corridor_route_got2.pdf}
-  \caption{A second example from the same graph. The sleeve (light blue triangles) navigates through the gap between obstacles. The red path exits the source and enters the target along the optimal direction determined by vertex collapse. Dashed rectangles show the padded obstacle boundaries that constrain the CDT.}
+  \includegraphics[width=0.48\textwidth]{collapse_1_BRIENNE_LOCKE_before.pdf}%
+  \hfill
+  \includegraphics[width=0.48\textwidth]{collapse_1_BRIENNE_LOCKE_after.pdf}
+
+  \hspace{0.24\textwidth}(a)\hspace{0.46\textwidth}(b)
+  \caption{Vertex collapse on an edge from the Game of Thrones graph. Source (dark blue, bottom-left) and target (dark red, top). Light blue: sleeve triangles. (a)~Orange dashed lines show the raw diagonals with endpoints at obstacle boundary corners. (b)~Green dashed lines show collapsed diagonals, where source/target obstacle vertices have been moved to the node centers. The red polyline is the resulting funnel path, exiting and entering nodes along the optimal direction.}
   \label{fig:channel_collapse}
 \end{figure}
 
