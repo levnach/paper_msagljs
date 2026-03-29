@@ -1,0 +1,193 @@
+\documentclass[a4paper,USenglish,anonymous]{gd-lipics-v3}
+%% anonymous: for double-blind review
+%% Remove "anonymous" for camera-ready version
+
+\usepackage{graphicx}
+\usepackage{svg}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\graphicspath{{./images/}}
+
+\bibliographystyle{plainurl}% mandatory for LIPIcs
+
+\title{Edge Routing Inside a Channel}
+
+\author{Lev Nachmanson}{Microsoft Research, Redmond, US}{levnach@hotmail.com}{}{} 
+\author{Xiaoji Chen}{}{cxiaoji@gmail.com}{}{}
+
+\authorrunning{L. Nachmanson and X. Chen}
+
+\Copyright{Lev Nachmanson and Xiaoji Chen}
+
+\ccsdesc[500]{Human-centered computing~Graph drawings}
+\ccsdesc[300]{Theory of computation~Computational geometry}
+
+\keywords{Edge routing, Constrained Delaunay Triangulation, funnel algorithm, Sugiyama layout, graph drawing}
+
+\category{Track 2, Short Paper}
+
+\supplement{\url{https://github.com/microsoft/msagljs}}
+
+\GAIDecl{Generative AI was used for editorial assistance in the preparation of this article.}
+
+%% Custom macros
+\newcommand{\comm}[1]{}
+\newcommand{\TODO}[1]{{\color{magenta}{#1}}}
+\newcommand{\cdt}{$\mathcal{T}$}
+\newcommand{\unpath}{$\mathcal{L}$}
+\newcommand{\triset}{$\mathcal{U}$}
+\newcommand{\plg}{$\mathcal{P}$}
+\newcommand{\obst}{$\mathcal{O}$}
+
+%% Editor-only macros (do not touch as author) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\EventEditors{TBD}
+\EventNoEds{2}
+\EventLongTitle{34th International Symposium on Graph Drawing and Network Visualization (GD 2026)}
+\EventShortTitle{GD 2026}
+\EventAcronym{GD}
+\EventYear{2026}
+\EventDate{August 19--21, 2026}
+\EventLocation{Ontario, Canada}
+\EventLogo{}
+\SeriesVolume{42}
+\ArticleNo{0}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present an efficient edge routing algorithm that produces the shortest path in the homotopy class of an initial polyline route. The key idea is \emph{routing inside a channel}: given an initial path routed on a spanner graph, we construct a polygon (the channel) around the path using a Constrained Delaunay Triangulation, then apply the funnel algorithm to find the optimal path within that channel. Unlike prior approaches, our method does not require the channel polygon to be simple. We implement the algorithm in two open-source graph layout libraries, MSAGLJS (TypeScript) and MSAGL (C\#), and demonstrate its application to both force-directed and Sugiyama (layered) layouts. Experimental results show the method produces visually superior paths with competitive performance.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:intro}
+
+A common approach to edge routing in graph drawing is to find shortest paths on a visibility graph that avoids node obstacles. However, the full visibility graph can have $O(n^2)$ edges, making this expensive for large graphs. A practical alternative, introduced by Dwyer and Nachmanson~\cite{dwyer2010fast}, routes edges on a spanner graph---a sparse approximation of the visibility graph---and then applies local optimizations to shorten the resulting paths.
+
+We observe that the local shortcutting heuristic used in~\cite{dwyer2010fast} can fail to remove all kinks from a path. We replace it with a more principled optimization: for each edge, we construct a \emph{channel}---a polygon surrounding the initial path---and apply the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing} to find the shortest path within the channel's homotopy class.
+
+The funnel algorithm has been used for edge routing before: Graphviz applies it in the Sugiyama layout where a simple containing polygon is readily available~\cite{dobkin1997implementing}. Our contribution is showing how to construct the channel for \emph{any} layout and demonstrating that the funnel algorithm works correctly even when the channel polygon is not simple.
+
+We implement this approach in two open-source libraries: MSAGLJS\footnote{\url{https://github.com/microsoft/msagljs}} (TypeScript) and MSAGL\footnote{\url{https://github.com/microsoft/automatic-graph-layout}} (C\#), applying it to both force-directed and Sugiyama layouts.
+
+\section{Related Work}
+\label{sec:related}
+
+Graphviz~\cite{graphviz} builds the full visibility graph for edge routing in force-directed layouts, which can be slow for large graphs. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but notes the requirement for a simple polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation, running in $O((n+m)\log(n+m))$ time. The approach of~\cite{dwyer2010fast} uses a Yao-graph spanner with local shortcutting, which we improve upon.
+
+\section{Edge Routing Inside a Channel}
+\label{sec:routing}
+
+\subsection{Building the Spanner}
+
+The edge routing starts by building a spanner graph, an approximation of the full visibility graph, following~\cite{dwyer2010fast}. The spanner is built on a variation of a Yao graph~\cite{flinchbaugh1981strong,yao1982constructing}. Each node is covered by a polygon with at most $8$ corners, which serve as vertices of the spanner. For each vertex, a family of $k$ cones (with angle $\frac{2\pi}{k}$, $k=12$ in our setting) partitions the plane; for each cone, at most one edge is created to the closest vertex inside it. The resulting spanner has $O(N)$ edges, where $N$ is the number of graph nodes.
+
+\subsection{Channel Construction}
+\label{sec:channel}
+
+Before routing edges, we compute a Constrained Delaunay Triangulation (CDT) \cdt{} on the set of obstacle polygons \obst{}~\cite{delaunay1934sphere,domiter2008sweep}.
+
+For each graph edge, we route an initial path \unpath{} on the spanner. Let $\mathcal{S}$ and $\mathcal{E}$ be the obstacles containing the start and end points of \unpath. We define \triset, the set of all triangles $t \in \mathcal{T}$ such that either $t \subset \mathcal{S} \cup \mathcal{E}$, or $t$ intersects \unpath{} and is not inside any obstacle in $\mathcal{O} \setminus \{\mathcal{S}, \mathcal{E}\}$. The union of \triset{} forms polygon \plg---the \emph{channel}. The boundary of \plg{} consists of all triangle sides that belong to exactly one triangle in \triset.
+
+\subsection{Sleeve and Funnel Optimization}
+
+To apply the funnel algorithm, we need a \emph{sleeve}: a sequence of triangles from start to end where consecutive triangles share a side. Since \triset{} may not have this property, we compute a new Constrained Delaunay Triangulation of \plg{} with the boundary edges as constraints, trace \unpath{} through it, and extract the sleeve. The funnel algorithm then produces the shortest path in the homotopy class of \unpath.
+
+Crucially, \plg{} need not be simple. The funnel algorithm requires only a valid sleeve, not a simple polygon. When \plg{} self-intersects, the resulting path is the shortest within the sleeve's homotopy class, though not necessarily the globally shortest path inside \plg{} (see Fig.~\ref{fig:non_optimal_path}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics*[width=0.5\textwidth]{sleeve_diagonals_not_optimal.pdf}
+  \caption{When \plg{} is not simple, the dotted path is shorter than the dashed path found by the funnel algorithm. The funnel result is still the shortest in its homotopy class.}
+  \label{fig:non_optimal_path}
+\end{figure}
+
+\subsection{Application to Sugiyama Layout}
+
+The channel-based routing naturally extends to Sugiyama (layered) layouts. In a Sugiyama layout, edges already follow polyline paths through the layers. These polylines serve as the initial paths \unpath, and the same CDT-based channel construction and funnel optimization apply. This generalizes the Graphviz approach~\cite{dobkin1997implementing}, which requires a simple containing polygon that is available only in specific configurations.
+
+\TODO{Add Sugiyama-specific details and figures after implementation.}
+
+\section{Direct Routing on the CDT}
+\label{sec:corridor}
+
+The channel-based approach of Section~\ref{sec:routing} requires two steps: an initial route on the spanner graph, followed by channel construction and funnel optimization. We now describe an alternative that eliminates the spanner entirely, routing edges directly on the CDT dual graph.
+
+\subsection{A* Search on the Dual Graph}
+
+Given the CDT \cdt{} built on padded obstacle polylines, we define a \emph{dual graph} whose nodes are the CDT triangles and whose edges connect triangles sharing a side. For each graph edge from source~$s$ to target~$t$, we locate the triangle containing~$s$ and run A*~\cite{hart1968formal} on this dual graph to find a shortest sequence of triangles---the \emph{sleeve}---leading to the triangle containing~$t$.
+
+The A* edge weight between adjacent triangles is the Euclidean distance between their centroids, and the heuristic is the straight-line distance from the current centroid to~$t$. A triangle is excluded from the search if all three of its CDT sites belong to the same obstacle (indicating the triangle lies inside an obstacle interior). Triangles inside the source or target obstacles are permitted, since the path must traverse those obstacles.
+
+The sleeve produced by A* is then passed to the funnel algorithm~\cite{chazelle1982theorem}, which computes the shortest path through the sleeve's sequence of diagonals (see Fig.~\ref{fig:cdt_dual}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.6\textwidth]{cdt_dual_routing.pdf}
+  \caption{Direct routing on the CDT dual graph. The shaded region is the sleeve---a sequence of triangles found by A*. The red polyline is the shortest path computed by the funnel algorithm.}
+  \label{fig:cdt_dual}
+\end{figure}
+
+\subsection{Vertex Collapse at Source and Target}
+\label{sec:collapse}
+
+A subtlety arises at the source and target nodes. The funnel path from node center to node center passes through corners of the padded obstacle polylines near each endpoint, producing sharp turns that look unnatural (Fig.~\ref{fig:collapse}a).
+
+To eliminate these sharp turns, we \emph{virtually collapse} the source and target obstacles: when converting the sleeve into funnel diagonals, any diagonal endpoint whose CDT site belongs to the source obstacle is moved to the source center~$s$, and similarly for the target obstacle. Diagonals that become degenerate (both endpoints at the same point) are removed.
+
+This collapse causes the funnel algorithm to see a ``wide opening'' at each endpoint rather than a narrow gap between obstacle corners. The resulting path exits the source node and enters the target node along the globally optimal direction, determined by the structure of the intervening free space (Fig.~\ref{fig:collapse}b). A final arrowhead-trimming step clips the path at the actual node boundaries.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\textwidth]{vertex_collapse.pdf}
+  \caption{(a)~Without collapse, the funnel path zigzags through obstacle corners near $S$ and~$T$. (b)~With collapse, obstacle boundary vertices are moved to their node centers (blue dashed arrows), producing a smooth path. Arrowhead trimming clips at the actual node boundary.}
+  \label{fig:collapse}
+\end{figure}
+
+\subsection{Comparison with the Channel Approach}
+
+The direct CDT routing avoids building a spanner graph entirely, reducing both code complexity and runtime for the initial routing step. The A* search on the dual graph takes $O(k \log k)$ time per edge, where $k$ is the number of triangles visited. Since the CDT has $O(N)$ triangles for $N$ obstacle vertices, the total routing cost is $O(m \cdot N \log N)$ in the worst case for $m$~edges, though in practice the A* heuristic keeps the search local.
+
+We measured the total edge length produced by each method on the same node layout. On two benchmark graphs---a 407-node social network (2\,639 edges) and a 1\,463-node graph from the Graphviz test suite---the corridor method produces paths only 2.7--2.8\% longer than the spanner-based method, while being significantly simpler to implement.
+
+\section{Experimental Results}
+\label{sec:experiments}
+
+\TODO{Update with results from both MSAGLJS and MSAGL .NET implementations, including Sugiyama layouts.}
+
+We compare the channel-based routing against the shortcutting approach of~\cite{dwyer2010fast}. Table~\ref{tab:perf} summarizes performance on benchmark graphs.
+
+\begin{table}[t]
+  \centering
+  \begin{tabular}{lrrcc}
+    \hline
+    Graph & Nodes & Edges & Old (s) & New (s) \\
+    \hline
+    social network~\cite{beveridge2018game} & 407 & 2\,639 & 1.0 & 1.4 \\
+    b103~\cite{b103} & 944 & 2\,438 & 1.6 & 2.0 \\
+    b100~\cite{b100} & 1\,463 & 5\,806 & 5.6 & 5.8 \\
+    composers~\cite{composers} & 3\,405 & 13\,832 & 510.5 & 20.3 \\
+    p2p-Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 375.4 & 304.2 \\
+    facebook\_combined~\cite{fb} & 4\,039 & 88\,234 & 132.2 & 123.7 \\
+    ca-HepPh~\cite{leskovec2007graph} & 12\,008 & 237\,010 & 521.2 & 495.0 \\
+    \hline
+  \end{tabular}
+  \caption{Performance comparison (time in seconds).}
+  \label{tab:perf}
+\end{table}
+
+The channel method is faster on larger graphs (over 2\,000 nodes) and produces visually superior paths without kinks. On smaller graphs the overhead of CDT construction causes a minor slowdown.
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented an edge routing method based on constructing a channel around an initial path and applying the funnel algorithm to find the shortest path in its homotopy class. The method does not require the channel polygon to be simple, making it applicable to any graph layout. We demonstrated its effectiveness in both force-directed and Sugiyama layouts, implemented in the open-source MSAGLJS and MSAGL libraries.
+
+\TODO{Finalize after Sugiyama implementation is complete.}
+
+\bibliography{main}
+
+\end{document}

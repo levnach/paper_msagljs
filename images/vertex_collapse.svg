@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg version="1.1" width="460" height="240" xmlns="http://www.w3.org/2000/svg">
+  <!-- Figure: Vertex collapse for source/target obstacles -->
+  <!-- Left: before collapse (sharp turns at obstacle corners) -->
+  <!-- Right: after collapse (smooth exit toward optimal direction) -->
+
+  <!-- Left panel: Before collapse -->
+  <g transform="translate(0,0)">
+    <text x="110" y="18" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">(a) Before collapse</text>
+
+    <!-- Source obstacle (padded boundary) -->
+    <rect x="20" y="60" width="80" height="50" rx="3" fill="#e8e8e8" stroke="#999" stroke-width="1" stroke-dasharray="3,2"/>
+    <!-- Actual node boundary -->
+    <rect x="30" y="70" width="60" height="30" rx="3" fill="#ddd" stroke="black" stroke-width="1.5"/>
+    <text x="60" y="90" text-anchor="middle" font-size="11" font-family="serif">S</text>
+
+    <!-- Target obstacle -->
+    <rect x="130" y="130" width="80" height="50" rx="3" fill="#e8e8e8" stroke="#999" stroke-width="1" stroke-dasharray="3,2"/>
+    <rect x="140" y="140" width="60" height="30" rx="3" fill="#ddd" stroke="black" stroke-width="1.5"/>
+    <text x="170" y="160" text-anchor="middle" font-size="11" font-family="serif">T</text>
+
+    <!-- Middle obstacle -->
+    <rect x="95" y="50" width="40" height="30" rx="3" fill="#eee" stroke="black" stroke-width="1"/>
+
+    <!-- Path with sharp turns at obstacle corners -->
+    <polyline points="60,85 100,60 135,60 100,110 130,130 170,155"
+              fill="none" stroke="#c0392b" stroke-width="2"/>
+    <circle cx="60" cy="85" r="3" fill="#c0392b"/>
+    <circle cx="170" cy="155" r="3" fill="#c0392b"/>
+
+    <!-- Sharp turn markers -->
+    <circle cx="100" cy="60" r="5" fill="none" stroke="#e67e22" stroke-width="1.5"/>
+    <circle cx="130" cy="130" r="5" fill="none" stroke="#e67e22" stroke-width="1.5"/>
+    <text x="115" y="42" text-anchor="middle" font-size="9" font-family="serif" fill="#e67e22">sharp</text>
+    <text x="145" y="125" text-anchor="middle" font-size="9" font-family="serif" fill="#e67e22">sharp</text>
+  </g>
+
+  <!-- Right panel: After collapse -->
+  <g transform="translate(230,0)">
+    <text x="110" y="18" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">(b) After collapse</text>
+
+    <!-- Source obstacle (padded boundary) dashed to show it's "collapsed" -->
+    <rect x="20" y="60" width="80" height="50" rx="3" fill="#e8e8e8" stroke="#999" stroke-width="0.5" stroke-dasharray="2,3"/>
+    <!-- Actual node boundary -->
+    <rect x="30" y="70" width="60" height="30" rx="3" fill="#ddd" stroke="black" stroke-width="1.5"/>
+    <text x="60" y="90" text-anchor="middle" font-size="11" font-family="serif">S</text>
+
+    <!-- Target obstacle -->
+    <rect x="130" y="130" width="80" height="50" rx="3" fill="#e8e8e8" stroke="#999" stroke-width="0.5" stroke-dasharray="2,3"/>
+    <rect x="140" y="140" width="60" height="30" rx="3" fill="#ddd" stroke="black" stroke-width="1.5"/>
+    <text x="170" y="160" text-anchor="middle" font-size="11" font-family="serif">T</text>
+
+    <!-- Middle obstacle -->
+    <rect x="95" y="50" width="40" height="30" rx="3" fill="#eee" stroke="black" stroke-width="1"/>
+
+    <!-- Collapse arrows (obstacle corners → center) -->
+    <g stroke="#4a90d9" stroke-width="0.8" stroke-dasharray="2,2" fill="none">
+      <line x1="20" y1="60" x2="60" y2="85"/>
+      <line x1="100" y1="60" x2="60" y2="85"/>
+      <line x1="100" y1="110" x2="60" y2="85"/>
+      <line x1="20" y1="110" x2="60" y2="85"/>
+      <line x1="130" y1="130" x2="170" y2="155"/>
+      <line x1="210" y1="130" x2="170" y2="155"/>
+      <line x1="210" y1="180" x2="170" y2="155"/>
+      <line x1="130" y1="180" x2="170" y2="155"/>
+    </g>
+
+    <!-- Clean path after collapse -->
+    <polyline points="60,85 135,80 100,110 170,155"
+              fill="none" stroke="#27ae60" stroke-width="2.5"/>
+    <circle cx="60" cy="85" r="3" fill="#27ae60"/>
+    <circle cx="170" cy="155" r="3" fill="#27ae60"/>
+
+    <!-- Label -->
+    <text x="110" y="225" text-anchor="middle" font-size="9" font-family="serif" fill="#4a90d9">dashed: collapsed boundary vertices → center</text>
+  </g>
+
+  <!-- Bottom label -->
+  <text x="230" y="235" text-anchor="middle" font-size="10" font-family="serif">Arrowhead trimming clips at the actual node boundary</text>
+</svg>
