@@ -1,78 +1,98 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg version="1.1" width="400" height="280" xmlns="http://www.w3.org/2000/svg">
   <!-- Figure: Direct routing on CDT dual graph -->
-  <!-- Sleeve goes AROUND obstacles through free-space triangles -->
+  <!-- Sleeve goes BELOW O1, through the gap between O1 and O2 -->
 
   <rect width="400" height="280" fill="white"/>
 
-  <!-- Source node S -->
-  <rect x="20" y="110" width="55" height="36" rx="4" fill="#ddd" stroke="black" stroke-width="1.5"/>
-  <text x="47" y="133" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">S</text>
+  <!-- Source node S (centered vertically) -->
+  <rect x="20" y="105" width="55" height="36" rx="4" fill="#ddd" stroke="black" stroke-width="1.5"/>
+  <text x="47" y="128" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">S</text>
 
   <!-- Target node T -->
-  <rect x="320" y="110" width="55" height="36" rx="4" fill="#ddd" stroke="black" stroke-width="1.5"/>
-  <text x="347" y="133" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">T</text>
+  <rect x="320" y="105" width="55" height="36" rx="4" fill="#ddd" stroke="black" stroke-width="1.5"/>
+  <text x="347" y="128" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">T</text>
 
-  <!-- Obstacles O1 and O2 -->
-  <rect x="148" y="60" width="55" height="36" rx="3" fill="#eee" stroke="black" stroke-width="1.2"/>
-  <text x="175" y="83" text-anchor="middle" font-size="10" font-family="serif">O₁</text>
+  <!-- Obstacle O1 (above center) -->
+  <rect x="148" y="42" width="55" height="36" rx="3" fill="#eee" stroke="black" stroke-width="1.2"/>
+  <text x="175" y="65" text-anchor="middle" font-size="10" font-family="serif">O₁</text>
+  <!-- Padded boundary O1 -->
+  <rect x="138" y="32" width="75" height="56" rx="2" fill="none" stroke="#aaa" stroke-width="0.7" stroke-dasharray="3,2"/>
 
-  <rect x="148" y="160" width="55" height="36" rx="3" fill="#eee" stroke="black" stroke-width="1.2"/>
-  <text x="175" y="183" text-anchor="middle" font-size="10" font-family="serif">O₂</text>
+  <!-- Obstacle O2 (below center) -->
+  <rect x="148" y="168" width="55" height="36" rx="3" fill="#eee" stroke="black" stroke-width="1.2"/>
+  <text x="175" y="191" text-anchor="middle" font-size="10" font-family="serif">O₂</text>
+  <!-- Padded boundary O2 -->
+  <rect x="138" y="158" width="75" height="56" rx="2" fill="none" stroke="#aaa" stroke-width="0.7" stroke-dasharray="3,2"/>
 
-  <!-- Padded obstacle boundaries (dashed) -->
-  <rect x="138" y="50" width="75" height="56" rx="2" fill="none" stroke="#aaa" stroke-width="0.7" stroke-dasharray="3,2"/>
-  <rect x="138" y="150" width="75" height="56" rx="2" fill="none" stroke="#aaa" stroke-width="0.7" stroke-dasharray="3,2"/>
+  <!-- Key free-space vertices for the gap between O1 and O2 -->
+  <!-- Bottom-left of O1 padded: (138, 88) -->
+  <!-- Bottom-right of O1 padded: (213, 88) -->
+  <!-- Top-left of O2 padded: (138, 158) -->
+  <!-- Top-right of O2 padded: (213, 158) -->
+  <!-- S right edge: (75, 105), (75, 141) -->
+  <!-- T left edge: (320, 105), (320, 141) -->
 
-  <!-- Free-space CDT edges (thin gray background triangulation) -->
+  <!-- Background CDT edges (thin gray) -->
   <g stroke="#ccc" stroke-width="0.4" fill="none">
-    <!-- around top -->
-    <line x1="75" y1="110" x2="138" y2="50"/>
-    <line x1="138" y1="50" x2="213" y2="50"/>
-    <line x1="213" y1="50" x2="320" y2="110"/>
-    <line x1="75" y1="110" x2="138" y2="106"/>
-    <line x1="213" y1="106" x2="320" y2="110"/>
-    <!-- around bottom -->
-    <line x1="75" y1="146" x2="138" y2="150"/>
-    <line x1="138" y1="206" x2="213" y2="206"/>
-    <line x1="213" y1="150" x2="320" y2="146"/>
-    <line x1="75" y1="146" x2="138" y2="206"/>
-    <line x1="213" y1="206" x2="320" y2="146"/>
-    <!-- gap between obstacles -->
-    <line x1="138" y1="106" x2="138" y2="150"/>
-    <line x1="213" y1="106" x2="213" y2="150"/>
-    <line x1="138" y1="106" x2="213" y2="150"/>
+    <!-- above obstacles -->
+    <line x1="75" y1="105" x2="138" y2="32"/>
+    <line x1="213" y1="32" x2="320" y2="105"/>
+    <!-- below obstacles -->
+    <line x1="75" y1="141" x2="138" y2="214"/>
+    <line x1="213" y1="214" x2="320" y2="141"/>
+    <!-- gap edges -->
+    <line x1="75" y1="105" x2="138" y2="88"/>
+    <line x1="75" y1="141" x2="138" y2="158"/>
+    <line x1="213" y1="88" x2="320" y2="105"/>
+    <line x1="213" y1="158" x2="320" y2="141"/>
+    <line x1="138" y1="88" x2="138" y2="158"/>
+    <line x1="213" y1="88" x2="213" y2="158"/>
+    <line x1="138" y1="88" x2="213" y2="88"/>
+    <line x1="138" y1="158" x2="213" y2="158"/>
+    <line x1="138" y1="88" x2="213" y2="158"/>
   </g>
 
-  <!-- SLEEVE: free-space triangles going above O1 -->
-  <!-- Triangle 1: inside S obstacle area → S to top-left of O1 -->
-  <polygon points="75,110 138,50 75,146" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
-  <!-- Triangle 2: free space above O1 left -->
-  <polygon points="75,110 138,50 138,106" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
-  <!-- Triangle 3: free space above O1 -->
-  <polygon points="138,50 213,50 138,106" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
-  <!-- Triangle 4: free space above O1 right -->
-  <polygon points="213,50 138,106 213,106" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
-  <!-- Triangle 5: free space right of O1 -->
-  <polygon points="213,50 213,106 320,110" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
+  <!-- SLEEVE: free-space triangles going through the gap between O1 and O2 -->
+  <!-- t1: S-right to gap-top-left -->
+  <polygon points="75,105 75,141 138,88" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
+  <!-- t2: left side of gap -->
+  <polygon points="75,141 138,88 138,158" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
+  <!-- t3: upper-left gap triangle -->
+  <polygon points="138,88 213,88 138,158" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
+  <!-- t4: lower-right gap triangle -->
+  <polygon points="213,88 138,158 213,158" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
+  <!-- t5: right side of gap to T -->
+  <polygon points="213,88 213,158 320,141" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
+  <!-- t6: T-left to gap-top-right -->
+  <polygon points="213,88 320,141 320,105" fill="#cde4f7" fill-opacity="0.4" stroke="#4a90d9" stroke-width="0.6"/>
 
   <!-- Diagonals (shared edges between consecutive sleeve triangles) -->
   <g stroke="#4a90d9" stroke-width="1.3" stroke-dasharray="5,3">
-    <line x1="75" y1="110" x2="138" y2="50"/>
-    <line x1="138" y1="50" x2="138" y2="106"/>
-    <line x1="213" y1="50" x2="138" y2="106"/>
-    <line x1="213" y1="50" x2="213" y2="106"/>
-    <line x1="213" y1="50" x2="320" y2="110"/>
+    <line x1="75" y1="141" x2="138" y2="88"/>
+    <line x1="138" y1="88" x2="138" y2="158"/>
+    <line x1="138" y1="158" x2="213" y2="88"/>
+    <line x1="213" y1="88" x2="213" y2="158"/>
+    <line x1="213" y1="88" x2="320" y2="141"/>
   </g>
 
-  <!-- Funnel shortest path (red) going above obstacles -->
-  <polyline points="47,128 138,50 213,50 347,128"
+  <!-- Diagonal labels -->
+  <g font-size="8" font-family="serif" fill="#4a90d9">
+    <text x="100" y="108" text-anchor="middle">d₁</text>
+    <text x="130" y="125" text-anchor="end">d₂</text>
+    <text x="175" y="118" text-anchor="middle">d₃</text>
+    <text x="221" y="125" text-anchor="start">d₄</text>
+    <text x="273" y="108" text-anchor="middle">d₅</text>
+  </g>
+
+  <!-- Funnel shortest path (red) through the gap -->
+  <polyline points="47,123 138,88 213,88 347,123"
             fill="none" stroke="#c0392b" stroke-width="2.5"/>
-  <circle cx="47" cy="128" r="4" fill="#c0392b"/>
-  <circle cx="347" cy="128" r="4" fill="#c0392b"/>
+  <circle cx="47" cy="123" r="4" fill="#c0392b"/>
+  <circle cx="347" cy="123" r="4" fill="#c0392b"/>
 
   <!-- Labels -->
-  <text x="200" y="22" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">A* on CDT dual → Sleeve → Funnel path</text>
-  <text x="200" y="248" text-anchor="middle" font-size="9" font-family="serif" fill="#4a90d9">shaded: sleeve (free-space triangles only)</text>
-  <text x="200" y="264" text-anchor="middle" font-size="9" font-family="serif" fill="#c0392b">red: shortest path from funnel algorithm</text>
+  <text x="200" y="18" text-anchor="middle" font-size="12" font-family="serif" font-weight="bold">A* on CDT dual → Sleeve → Funnel path</text>
+  <text x="200" y="245" text-anchor="middle" font-size="9" font-family="serif" fill="#4a90d9">shaded: sleeve (free-space triangles); dashed: diagonals d₁–d₅</text>
+  <text x="200" y="261" text-anchor="middle" font-size="9" font-family="serif" fill="#c0392b">red: shortest path from funnel algorithm</text>
 </svg>
