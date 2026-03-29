@@ -126,8 +126,8 @@ The sleeve produced by A* is then passed to the funnel algorithm~\cite{chazelle1
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.6\textwidth]{cdt_dual_routing.pdf}
-  \caption{Direct routing on the CDT dual graph. The shaded region is the sleeve---a sequence of triangles found by A*. The red polyline is the shortest path computed by the funnel algorithm.}
+  \includegraphics[width=0.6\textwidth]{corridor_route_got.pdf}
+  \caption{Direct routing on the CDT dual graph for an edge in the Game of Thrones social network. Solid dark rectangles: source (dark red, bottom) and target (dark blue, top) nodes. Dashed rectangles: padded obstacle boundaries. Light blue triangles: the sleeve found by A*. Red polyline: the shortest path computed by the funnel algorithm with vertex collapse. Gray rectangles: nearby obstacle nodes with their padded boundaries (dashed gray).}
   \label{fig:cdt_dual}
 \end{figure}
 
@@ -151,8 +151,8 @@ A final arrowhead-trimming step clips the resulting path at the actual node boun
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\textwidth]{channel_collapse.pdf}
-  \caption{(a)~Before collapse: the sleeve diagonals (blue dashed) have endpoints at obstacle corner vertices $a_1, a_2$ (source) and $b_1, b_2$ (target). The funnel path (red) makes sharp turns at these corners. (b)~After collapse: source-obstacle vertices are moved to center~$s$, target-obstacle vertices to center~$t$ (blue arrows). The degenerate diagonal $d_6$ (both endpoints at~$t$) is removed. The funnel path (green) exits $S$ and enters $T$ along the optimal direction.}
+  \includegraphics[width=0.6\textwidth]{corridor_route_got2.pdf}
+  \caption{A second example from the same graph. The sleeve (light blue triangles) navigates through the gap between obstacles. The red path exits the source and enters the target along the optimal direction determined by vertex collapse. Dashed rectangles show the padded obstacle boundaries that constrain the CDT.}
   \label{fig:channel_collapse}
 \end{figure}
 
