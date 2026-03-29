@@ -134,17 +134,26 @@ The sleeve produced by A* is then passed to the funnel algorithm~\cite{chazelle1
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
-A subtlety arises at the source and target nodes. The funnel path from node center to node center passes through corners of the padded obstacle polylines near each endpoint, producing sharp turns that look unnatural (Fig.~\ref{fig:collapse}a).
+A subtlety arises at the source and target nodes. The sleeve passes through triangles whose vertices lie on the padded obstacle boundaries of the source node~$S$ and target node~$T$. When these boundary vertices appear as diagonal endpoints, the funnel algorithm threads the path through narrow gaps between obstacle corners, producing sharp zigzag turns near each endpoint (Fig.~\ref{fig:channel_collapse}a).
 
-To eliminate these sharp turns, we \emph{virtually collapse} the source and target obstacles: when converting the sleeve into funnel diagonals, any diagonal endpoint whose CDT site belongs to the source obstacle is moved to the source center~$s$, and similarly for the target obstacle. Diagonals that become degenerate (both endpoints at the same point) are removed.
+We eliminate these artifacts with a \emph{vertex collapse} operation applied when converting the sleeve into funnel diagonals. The sleeve is a sequence of triangles $t_1, t_2, \ldots, t_k$. Each consecutive pair $(t_i, t_{i+1})$ shares an edge---the $i$-th \emph{diagonal} $d_i$---with two CDT vertex endpoints. In the CDT, each vertex records the obstacle polyline it belongs to (its \emph{owner}).
 
-This collapse causes the funnel algorithm to see a ``wide opening'' at each endpoint rather than a narrow gap between obstacle corners. The resulting path exits the source node and enters the target node along the globally optimal direction, determined by the structure of the intervening free space (Fig.~\ref{fig:collapse}b). A final arrowhead-trimming step clips the path at the actual node boundaries.
+The collapse proceeds as follows. For each diagonal $d_i$ with vertex endpoints $u$ and $v$:
+\begin{enumerate}
+  \item If $u$'s owner is the source obstacle polyline, replace $u$'s position with the source center~$s$. Similarly, if $v$'s owner is the target obstacle polyline, replace $v$'s position with the target center~$t$.
+  \item If both endpoints collapse to the same point (e.g., both belong to the source obstacle), the diagonal becomes degenerate and is removed from the sequence.
+  \item The left/right orientation of each diagonal is determined from the \emph{original} (uncollapsed) geometry, preserving the topological structure of the sleeve.
+\end{enumerate}
+
+The effect on the funnel is illustrated in Fig.~\ref{fig:channel_collapse}b. Before collapse, the diagonals near $S$ fan out from distinct obstacle corner vertices $a_1, a_2, \ldots$, forcing the funnel through narrow gaps. After collapse, all these endpoints merge to the single point~$s$, so the funnel sees a wide opening and naturally selects the optimal exit direction. The same occurs at the target end, where corners $b_1, b_2, \ldots$ collapse to~$t$. Diagonals whose both endpoints belonged to the same obstacle (e.g., an edge of the source obstacle's padded boundary) become degenerate and are removed---they would have contributed no useful constraint to the funnel.
+
+A final arrowhead-trimming step clips the resulting path at the actual node boundary curves, so the visible edge begins and ends cleanly at each node's perimeter.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.85\textwidth]{vertex_collapse.pdf}
-  \caption{(a)~Without collapse, the funnel path zigzags through obstacle corners near $S$ and~$T$. (b)~With collapse, obstacle boundary vertices are moved to their node centers (blue dashed arrows), producing a smooth path. Arrowhead trimming clips at the actual node boundary.}
-  \label{fig:collapse}
+  \includegraphics[width=\textwidth]{channel_collapse.pdf}
+  \caption{(a)~Before collapse: the sleeve diagonals (blue dashed) have endpoints at obstacle corner vertices $a_1, a_2$ (source) and $b_1, b_2$ (target). The funnel path (red) makes sharp turns at these corners. (b)~After collapse: source-obstacle vertices are moved to center~$s$, target-obstacle vertices to center~$t$ (blue arrows). The degenerate diagonal $d_6$ (both endpoints at~$t$) is removed. The funnel path (green) exits $S$ and enters $T$ along the optimal direction.}
+  \label{fig:channel_collapse}
 \end{figure}
 
 \subsection{Comparison with the Channel Approach}
