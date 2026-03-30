@@ -96,14 +96,7 @@ For each graph edge, we route an initial path \unpath{} on the spanner. Let $\ma
 
 To apply the funnel algorithm, we need a \emph{sleeve}: a sequence of triangles from start to end where consecutive triangles share a side. Since \triset{} may not have this property, we compute a new Constrained Delaunay Triangulation of \plg{} with the boundary edges as constraints, trace \unpath{} through it, and extract the sleeve. The funnel algorithm then produces the shortest path in the homotopy class of \unpath.
 
-Crucially, \plg{} need not be simple. The funnel algorithm requires only a valid sleeve, not a simple polygon. When \plg{} self-intersects, the resulting path is the shortest within the sleeve's homotopy class, though not necessarily the globally shortest path inside \plg{} (see Fig.~\ref{fig:non_optimal_path}).
-
-\begin{figure}[t]
-  \centering
-  \includegraphics*[width=0.5\textwidth]{sleeve_diagonals_not_optimal.pdf}
-  \caption{When \plg{} is not simple, the dotted path is shorter than the dashed path found by the funnel algorithm. The funnel result is still the shortest in its homotopy class.}
-  \label{fig:non_optimal_path}
-\end{figure}
+Crucially, \plg{} need not be simple. The funnel algorithm requires only a valid sleeve, not a simple polygon. When \plg{} self-intersects, the resulting path is the shortest within the sleeve's homotopy class, though not necessarily the globally shortest path inside \plg.
 
 \subsection{Application to Sugiyama Layout}
 
