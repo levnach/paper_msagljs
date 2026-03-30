@@ -124,27 +124,16 @@ The A* edge weight between adjacent triangles is the Euclidean distance between 
 
 The sleeve produced by A* is then passed to the funnel algorithm~\cite{chazelle1982theorem}, which computes the shortest path through the sleeve's sequence of diagonals.
 
-\subsection{Legal Vertex Movement at Source and Target}
+\subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
 A subtlety arises at the source and target nodes. The sleeve passes through triangles whose vertices lie on the padded obstacle boundaries of the source node~$S$ and target node~$T$. When these boundary vertices appear as diagonal endpoints, the funnel algorithm threads the path through narrow gaps between obstacle corners, producing sharp zigzag turns near each endpoint.
 
-We eliminate these artifacts by moving each source/target obstacle vertex toward the node center as far as possible without flipping any sleeve triangle's orientation. For a vertex~$v$ on the source obstacle boundary, we parametrize its movement as $v' = v + t(s - v)$ for $t \in [0, 1]$. Each sleeve triangle $(v, a, b)$ using $v$ constrains $t$: defining $c_0 = (b{-}a) \times (v{-}a)$ and $c_1 = (b{-}a) \times (s{-}v)$, where $\times$ denotes the cross product, the orientation is preserved when $c_0 + t \cdot c_1 > 0$. If $c_1 \geq 0$ the constraint is always satisfied; if $c_1 < 0$ we require $t < c_0/|c_1|$. The maximum legal movement is $t^* = \min$ of all upper bounds across adjacent triangles, clamped to $[0,1]$.
+We eliminate these artifacts by \emph{collapsing} source and target obstacle vertices: when converting the sleeve into funnel diagonals, any diagonal endpoint whose CDT site belongs to the source obstacle is replaced with the source center~$s$, and similarly for the target obstacle. Diagonals that become degenerate, where both endpoints collapse to the same point, are removed from the sequence. The left/right orientation of each diagonal is determined from the original uncollapsed geometry, preserving the topological structure of the sleeve.
 
-This computation is $O(k)$ per vertex, where $k$ is the number of adjacent sleeve triangles. The result is that each obstacle vertex moves toward the node center as far as the local geometry permits, widening the funnel near endpoints and producing smoother paths. Vertices far from other obstacles typically move all the way to the center, while those in tight spaces move less.
+After collapse, the funnel sees a wide opening at each endpoint and naturally selects the optimal exit direction. A final arrowhead-trimming step clips the resulting path at the actual node boundary curves, so the visible edge begins and ends cleanly at each node's perimeter.
 
-Fig.~\ref{fig:combined} shows the result on two edges from the Game of Thrones social network. The original sleeve triangles are shown as dashed blue outlines, with the raw diagonals in dashed orange. The red polyline is the funnel path computed after the legal vertex movement.
-
-A final arrowhead-trimming step clips the resulting path at the actual node boundary curves, so the visible edge begins and ends cleanly at each node's perimeter.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.48\textwidth]{combined_7_MANCE_TORMUND.pdf}%
-  \hfill
-  \includegraphics[width=0.48\textwidth]{combined_4_LYANNA_MORMONT_MISSANDEI.pdf}
-  \caption{Legal vertex movement on two edges from the Game of Thrones graph. Thin gray: unchanged sleeve boundary. Dashed orange: original position of changed boundary edges. Solid green: boundary edges after moving source/target obstacle vertices toward the node center. Source padded boundary: red. Target padded boundary: blue. Gray rectangles: nearby padded obstacles.}
-  \label{fig:combined}
-\end{figure}
+Note that the collapsed sleeve is not guaranteed to avoid intersections with nearby obstacles, since moving boundary vertices to the center can cause the channel polygon to overlap neighbors. In practice, the funnel path stays close to the original free-space corridor and arrowhead trimming clips the endpoint segments, so such intersections rarely produce visible artifacts.
 
 \subsection{Batched Routing with Dijkstra Trees}
 \label{sec:dijkstra}
