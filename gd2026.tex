@@ -162,6 +162,17 @@ Note that the collapsed channel is not guaranteed to be free of intersections wi
   \label{fig:channel_collapse}
 \end{figure}
 
+\subsection{Batched Routing with Dijkstra Trees}
+\label{sec:dijkstra}
+
+When a graph node has many incident edges, running an independent A* search for each edge is wasteful: all searches start from the same source triangle and explore overlapping regions of the CDT. We exploit this by grouping edges by source node and running a single Dijkstra shortest-path computation per source.
+
+For a source node with $d$ outgoing edges, we locate the source triangle and run Dijkstra on the CDT dual graph, expanding outward until all $d$ target triangles have been reached. The Dijkstra builds a shortest-path tree rooted at the source triangle; sleeves to individual targets are recovered by following parent pointers from each target triangle back to the root. Target triangles that lie inside their obstacle's interior are reached but not expanded through, ensuring paths do not traverse non-target obstacles.
+
+This reduces the number of shortest-path searches from $m$ (one per edge) to at most $n$ (one per node), where $n$ and $m$ are the numbers of nodes and edges. In practice the reduction is significant: on the Game of Thrones social network, 2\,639 edges originate from only 331 distinct source nodes, with the top source having 93 edges. The Dijkstra tree approach reduces routing time by 30\% compared to per-edge A* on this graph.
+
+The trade-off is that Dijkstra, lacking a target-directed heuristic, may explore more of the CDT than A* would for any single edge. The total edge length increases by less than 1\% compared to per-edge A* routing, remaining within 3.5\% of the spanner-based method.
+
 \subsection{Comparison with the Channel Approach}
 
 The direct CDT routing avoids building a spanner graph entirely, reducing both code complexity and runtime for the initial routing step. The A* search on the dual graph takes $O(k \log k)$ time per edge, where $k$ is the number of triangles visited. Since the CDT has $O(N)$ triangles for $N$ obstacle vertices, the total routing cost is $O(m \cdot N \log N)$ in the worst case for $m$~edges, though in practice the A* heuristic keeps the search local.
