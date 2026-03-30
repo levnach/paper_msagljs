@@ -83,7 +83,7 @@ Graphviz~\cite{graphviz} builds the full visibility graph for edge routing in fo
 
 \subsection{Building the Spanner}
 
-The edge routing starts by building a spanner graph, an approximation of the full visibility graph, following~\cite{dwyer2010fast}. The spanner is built on a variation of a Yao graph~\cite{flinchbaugh1981strong,yao1982constructing}. Each node is covered by a polygon with at most $8$ corners, which serve as vertices of the spanner. For each vertex, a family of $k$ cones (with angle $\frac{2\pi}{k}$, $k=12$ in our setting) partitions the plane; for each cone, at most one edge is created to the closest vertex inside it. The resulting spanner has $O(N)$ edges, where $N$ is the number of graph nodes.
+The edge routing starts by building a spanner graph, an approximation of the full visibility graph, following~\cite{dwyer2010fast}. The spanner is built on a variation of a Yao graph~\cite{flinchbaugh1981strong,yao1982constructing}. Each node is covered by a polygon with at most $8$ corners, which serve as vertices of the spanner. For each vertex, a family of $k$ cones, with angle $\frac{2\pi}{k}$, $k=12$ in our setting, partitions the plane; for each cone, at most one edge is created to the closest vertex inside it. The resulting spanner has $O(N)$ edges, where $N$ is the number of graph nodes.
 
 \subsection{Channel Construction}
 \label{sec:channel}
