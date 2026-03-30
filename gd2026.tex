@@ -171,7 +171,7 @@ For a source node with $d$ outgoing edges, we locate the source triangle and run
 
 This reduces the number of shortest-path searches from $m$ (one per edge) to at most $n$ (one per node), where $n$ and $m$ are the numbers of nodes and edges. In practice the reduction is significant: on the Game of Thrones social network, 2\,639 edges originate from only 331 distinct source nodes, with the top source having 93 edges. The Dijkstra tree approach reduces routing time by 30\% compared to per-edge A* on this graph.
 
-The trade-off is that Dijkstra, lacking a target-directed heuristic, may explore more of the CDT than A* would for any single edge. The total edge length increases by less than 1\% compared to per-edge A* routing, remaining within 3.5\% of the spanner-based method.
+The trade-off is that Dijkstra, lacking a target-directed heuristic, may explore more triangles than A* would for any single edge. However, the shortest paths found are identical, since A* with a consistent heuristic and Dijkstra produce the same shortest-path tree.
 
 \subsection{Comparison with the Channel Approach}
 
