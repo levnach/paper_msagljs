@@ -120,7 +120,7 @@ The channel-based approach of Section~\ref{sec:routing} requires two steps: an i
 
 Given the CDT \cdt{} built on padded obstacle polylines, we define a \emph{dual graph} whose nodes are the CDT triangles and whose edges connect triangles sharing a side. For each graph edge from source~$s$ to target~$t$, we locate the triangle containing~$s$ and run A*~\cite{hart1968formal} on this dual graph to find a shortest sequence of triangles---the \emph{sleeve}---leading to the triangle containing~$t$.
 
-The A* edge weight between adjacent triangles is the Euclidean distance between their centroids, and the heuristic is the straight-line distance from the current centroid to~$t$. A triangle is excluded from the search if all three of its CDT sites belong to the same obstacle (indicating the triangle lies inside an obstacle interior). Triangles inside the source or target obstacles are permitted, since the path must traverse those obstacles.
+The A* edge weight between adjacent triangles is the Euclidean distance between their centroids, and the heuristic is the straight-line distance from the current centroid to~$t$. A triangle is excluded from the search if all three of its CDT sites belong to the same obstacle, meaning the triangle lies inside an obstacle interior. Triangles inside the source or target obstacles are permitted, since the path must traverse those obstacles.
 
 The sleeve produced by A* is then passed to the funnel algorithm~\cite{chazelle1982theorem}, which computes the shortest path through the sleeve's sequence of diagonals (see Fig.~\ref{fig:cdt_dual}).
 
@@ -141,11 +141,11 @@ We eliminate these artifacts with a \emph{vertex collapse} operation applied whe
 The collapse proceeds as follows. For each diagonal $d_i$ with vertex endpoints $u$ and $v$:
 \begin{enumerate}
   \item If $u$'s owner is the source obstacle polyline, replace $u$'s position with the source center~$s$. Similarly, if $v$'s owner is the target obstacle polyline, replace $v$'s position with the target center~$t$.
-  \item If both endpoints collapse to the same point (e.g., both belong to the source obstacle), the diagonal becomes degenerate and is removed from the sequence.
+  \item If both endpoints collapse to the same point, for example when both belong to the source obstacle, the diagonal becomes degenerate and is removed from the sequence.
   \item The left/right orientation of each diagonal is determined from the \emph{original} (uncollapsed) geometry, preserving the topological structure of the sleeve.
 \end{enumerate}
 
-The effect on the funnel is illustrated in Fig.~\ref{fig:channel_collapse}b. Before collapse, the diagonals near $S$ fan out from distinct obstacle corner vertices $a_1, a_2, \ldots$, forcing the funnel through narrow gaps. After collapse, all these endpoints merge to the single point~$s$, so the funnel sees a wide opening and naturally selects the optimal exit direction. The same occurs at the target end, where corners $b_1, b_2, \ldots$ collapse to~$t$. Diagonals whose both endpoints belonged to the same obstacle (e.g., an edge of the source obstacle's padded boundary) become degenerate and are removed---they would have contributed no useful constraint to the funnel.
+The effect on the funnel is illustrated in Fig.~\ref{fig:channel_collapse}b. Before collapse, the diagonals near $S$ fan out from distinct obstacle corner vertices $a_1, a_2, \ldots$, forcing the funnel through narrow gaps. After collapse, all these endpoints merge to the single point~$s$, so the funnel sees a wide opening and naturally selects the optimal exit direction. The same occurs at the target end, where corners $b_1, b_2, \ldots$ collapse to~$t$. Diagonals whose both endpoints belonged to the same obstacle, such as an edge of the source obstacle's padded boundary, become degenerate and are removed---they would have contributed no useful constraint to the funnel.
 
 A final arrowhead-trimming step clips the resulting path at the actual node boundary curves, so the visible edge begins and ends cleanly at each node's perimeter.
 
