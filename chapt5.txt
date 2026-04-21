@@ -1,0 +1,461 @@
+Pseudocode for Algorithms in Chapter 5
+"A Hub-Based Labeling Algorithm for Shortest Paths on Road Networks"
+========================================================================
+
+Section 5 covers improvements to the basic Hub Labeling (HL) algorithm:
+  5.1 Fast Preprocessing
+  5.2 Bootstrapping
+  5.3 Label Ordering
+  5.4 Shortest Path Covers
+  5.5 Label Compression (5.5.1 Small-ID, 5.5.2 k-Prefix, 5.5.3 Flexible Prefix)
+  5.6 Partition Oracle
+  5.7 Index-free Labels
+
+========================================================================
+5.1  FAST PREPROCESSING  (with h-hop heuristic pruning)
+========================================================================
+
+Algorithm: ComputeLabels(G, CH)
+  Input : graph G = (V, E), contraction hierarchy CH with upward arcs A↑, downward arcs A↓
+  Output: forward labels Lf(v) and reverse labels Lr(v) for every v ∈ V
+
+  for each v ∈ V in parallel do
+      // --- forward label ---
+      Lf(v) ← ∅
+      Run forward CH search from v          // explores only A↑
+      for each vertex w visited with search distance d(w) do
+          if not HeuristicPrune(w, d(w), A↓, h) then
+              if d(w) = dist(v, w) then      // exact check via point-to-point query
+                  add (w, d(w)) to Lf(v)
+
+      // --- reverse label (symmetric) ---
+      Lr(v) ← ∅
+      Run reverse CH search from v          // explores only A↑ in reverse
+      for each vertex w visited with search distance d(w) do
+          if not HeuristicPrune(w, d(w), A↓, h) then
+              if d(w) = dist(w, v) then
+                  add (w, d(w)) to Lr(v)
+
+------------------------------------------------------------------------
+Algorithm: HeuristicPrune(w, d_w, A↓, h)
+  // h-hop heuristic label pruning
+  Input : vertex w, its tentative distance d_w, downward arc set A↓, depth limit h
+  Output: true if w can be safely pruned (distance label is provably wrong)
+
+  Run a BFS / graph search from w in A↓, limited to depth h
+  for each vertex u reached with search distance d*(u, w) do
+      if d(u) + d*(u, w) < d_w then
+          return true          // d_w is incorrect → prune w
+  return false
+
+========================================================================
+5.2  BOOTSTRAPPING
+========================================================================
+
+Algorithm: BootstrapLabels(V, CH)
+  // Compute strict labels using HL itself for check queries.
+  // Process vertices in descending level order so that when we
+  // process v, all higher-level reverse labels are already final.
+
+  Input : vertex set V with CH levels, contraction hierarchy CH
+  Output: strict forward labels Lf(v) and reverse labels Lr(v)
+
+  Sort V in descending order of CH level
+
+  for each v ∈ V (in descending level order) do      // parallel within same level
+      Lf(v) ← partially pruned forward label of v    // from Sec 5.1
+
+      // Prune Lf(v) using already-computed reverse labels
+      for each (w, d(w)) ∈ Lf(v), w ≠ v do
+          // Lr(w) is already final because level(w) > level(v)
+          d_query ← HLQuery(Lf(v), Lr(w))            // HL point-to-point
+          if d(w) > d_query then
+              remove (w, d(w)) from Lf(v)
+
+      // Compute reverse label Lr(v) symmetrically and prune using Lf(w)
+      Lr(v) ← partially pruned reverse label of v
+      for each (w, d(w)) ∈ Lr(v), w ≠ v do
+          d_query ← HLQuery(Lf(w), Lr(v))
+          if d(w) > d_query then
+              remove (w, d(w)) from Lr(v)
+
+  Synchronize after each level before proceeding to the next
+
+------------------------------------------------------------------------
+Algorithm: HLQuery(Lf(s), Lr(t))
+  // Standard Hub Labeling distance query
+  Input : forward label Lf(s), reverse label Lr(t), both sorted by vertex ID
+  Output: dist(s, t)
+
+  d_best ← ∞
+  i ← 0;  j ← 0
+  while i < |Lf(s)| and j < |Lr(t)| do
+      (u, d_u) ← Lf(s)[i]
+      (w, d_w) ← Lr(t)[j]
+      if u = w then
+          d_best ← min(d_best, d_u + d_w)
+          i ← i + 1;  j ← j + 1
+      else if u < w then
+          i ← i + 1
+      else
+          j ← j + 1
+  return d_best
+
+========================================================================
+5.3  LABEL ORDERING  (vertex ID reassignment)
+========================================================================
+
+Algorithm: ReorderVertices(V, CH, k)
+  // Assign internal IDs so that the top-k most important CH vertices
+  // get IDs 0..k-1; the remaining vertices keep their input order.
+  // The single most important vertex gets ID |V| (sentinel).
+
+  Input : vertex set V, contraction hierarchy CH, parameter k
+  Output: mapping ID[v] for all v ∈ V
+
+  TopK ← the k vertices with highest CH rank
+  Sort TopK by input order (or by level, depending on variant)
+
+  nextID ← 0
+  for each v ∈ TopK do
+      ID[v] ← nextID
+      nextID ← nextID + 1
+
+  for each v ∈ V \ TopK (in input order) do
+      ID[v] ← nextID
+      nextID ← nextID + 1
+
+  // Sentinel: assign the single most important vertex ID = |V|
+  ID[most_important_vertex] ← |V|
+
+  Rewrite all labels using the new IDs
+  Re-sort each label by internal ID
+
+========================================================================
+5.4  SHORTEST PATH COVERS  (Greedy Cover Algorithm)
+========================================================================
+
+Algorithm: ShortestPathCoverPreprocessing(G, t)
+  // Improve CH ordering of the top-t vertices using a greedy SPC.
+
+  Input : graph G = (V, E), threshold t (e.g. 10 000)
+  Output: improved contraction hierarchy
+
+  // Phase 1: partial CH
+  Run standard CH preprocessing, but pause when t vertices remain
+  Let Gt be the overlay graph on these t vertices
+
+  // Phase 2: greedy cover
+  C ← GreedyCover(Gt, target_size)     // |C| ∈ [t/20, t/10]
+
+  // Phase 3: resume CH with cover constraint
+  Resume CH on Gt but forbid contracting vertices in C
+    until only C vertices remain
+  Contract C vertices in reverse greedy order
+    (first found by greedy = last contracted = highest rank)
+
+------------------------------------------------------------------------
+Algorithm: GreedyCover(Gt, target_size)
+  // Greedy algorithm to find a set C of vertices that hit many
+  // shortest paths in Gt.
+
+  Input : overlay graph Gt with vertex set Vt, target cover size
+  Output: cover set C
+
+  C ← ∅
+  for each round until |C| = target_size do
+
+      // Count uncovered shortest paths hit by each candidate
+      for each v ∈ Vt \ C do
+          h(v) ← 0
+
+      for each root r ∈ Vt do
+          Tr ← shortest path tree rooted at r in Gt
+          T'r ← remove from Tr all vertices in C and their descendants
+
+          // Bottom-up traversal of T'r
+          for each vertex v ∈ T'r in bottom-up order do
+              if v is a leaf of T'r then
+                  h(r, v) ← 1
+              else
+                  h(r, v) ← 1 + Σ_{u ∈ children(v, T'r)} h(r, u)
+              h(v) ← h(v) + h(r, v)
+
+      // Early termination: skip tree Tr if all labeled vertices
+      // are on paths already hit by C
+
+      v* ← argmax_{v ∈ Vt \ C} h(v)
+      C ← C ∪ {v*}
+
+  return C
+
+========================================================================
+5.5.1  COMPRESSING SMALL IDs  (8/24 scheme)
+========================================================================
+
+Algorithm: Compress8_24(Lf(v))
+  // Pack the top-256 vertex entries into single 32-bit words.
+
+  Input : label Lf(v) with entries (vertex_id, distance)
+  Output: compressed label
+
+  compressed ← []
+  rest ← []
+  for each (w, d) ∈ Lf(v) do
+      if w < 256 then
+          // Pack into one 32-bit word: 8 bits ID | 24 bits distance
+          word ← (w << 24) | (d & 0xFFFFFF)
+          compressed.append(word)
+      else
+          rest.append( (w, d) )          // stored as before (separate ID + dist)
+
+  return (compressed, rest)
+
+========================================================================
+5.5.2  k-PREFIX COMPRESSION
+========================================================================
+
+Algorithm: BuildKPrefixDictionary(all_labels, k, CH_trees)
+  // Build a dictionary of shared label prefixes and compress labels.
+
+  Input : all forward labels {Lf(v)}, prefix threshold k,
+          forward CH search trees {T(v)}
+  Output: dictionary D, compressed labels
+
+  D ← empty dictionary
+  for each vertex v do
+      Pk(v) ← { w ∈ Lf(v) : ID(w) < k }        // prefix vertices
+      Sk(v) ← { w ∈ Lf(v) : ID(w) ≥ k }        // suffix vertices
+
+      // Compute (w, δ(w), π(w)) triples from CH tree T(v)
+      triples ← []
+      for each w ∈ Pk(v) do
+          b(w) ← base of w in T(v)
+                  // = parent of the subtree root of the forest component
+                  //   containing w, which lies in Sk(v)
+                  // Special case: if Sk(v) is empty, b(v) = v
+          δ(w) ← tree distance from b(w) to w in T(v)
+          π(w) ← position (index) of b(w) in Sk(v)
+          triples.append( (w, δ(w), π(w)) )
+
+      // Look up or insert prefix in dictionary
+      key ← canonical form of triples
+      if key ∉ D then
+          D[key] ← |D|                           // new dictionary entry
+      prefix_ref ← D[key]
+
+      CompressedLf(v) ← (prefix_ref, |Pk(v)|, Sk(v))
+
+  return D, all CompressedLf
+
+------------------------------------------------------------------------
+Algorithm: KPrefixQuery(s, t, D)
+  // HL query using k-prefix compressed labels
+
+  Input : source s, target t, dictionary D
+  Output: dist(s, t)
+
+  d_best ← sentinel_dist(s) + sentinel_dist(t)     // quick upper bound
+
+  // --- merge suffixes (same as standard HL query on Sk(s), Sk(t)) ---
+  d_best ← min(d_best, HLQuery(Sk(s), Sk(t)))
+
+  // --- check prefix entries ---
+  for each (w, δ_s(w), π_s(w)) in prefix of Lf(s) do
+      for each (w', δ_t(w'), π_t(w')) in prefix of Lr(t) do
+          if w = w' then
+              // dist(s,w) = dist(s, b_s(w)) + δ_s(w)
+              //   where dist(s, b_s(w)) is stored at position π_s(w) in Sk(s)
+              d_sw ← Sk(s)[π_s(w)].distance + δ_s(w)
+              d_wt ← Sk(t)[π_t(w')].distance + δ_t(w')
+              d_best ← min(d_best, d_sw + d_wt)
+
+  // --- cross terms: prefix of one side vs suffix of the other ---
+  // (handled implicitly because base vertices are in suffixes)
+
+  return d_best
+
+========================================================================
+5.5.3  FLEXIBLE PREFIX COMPRESSION  (Facility Location heuristic)
+========================================================================
+
+Algorithm: FlexiblePrefixCompression(all_labels)
+  // Model prefix selection as a facility location problem.
+  // Each label L is a "customer"; each possible prefix P is a "facility".
+  // Opening cost = |P|, service cost of L by P = |L| - |P|.
+
+  Input : all labels {L(v)}
+  Output: dictionary of selected prefixes, assignment of labels to prefixes
+
+  // Phase 1: Greedy initialization
+  Prefixes ← ∅
+  Uncovered ← set of all labels
+  while Uncovered ≠ ∅ do
+      for each candidate prefix P do
+          C(P) ← { L ∈ Uncovered : L has prefix P }
+          score(P) ← ( avg_{L ∈ C(P)} (|P| / |L|) )² · log(|C(P)|)
+      P* ← argmax_P score(P)
+      Prefixes ← Prefixes ∪ {P*}
+      Assign each L ∈ C(P*) to P*
+      Uncovered ← Uncovered \ C(P*)
+
+  // Phase 2: Simple local search (add/remove)
+  repeat
+      improved ← false
+      for each prefix P do
+          // Try removing P
+          cost_without ← TotalCost(Prefixes \ {P}, all_labels)
+          if cost_without < TotalCost(Prefixes, all_labels) then
+              Prefixes ← Prefixes \ {P}
+              improved ← true
+      for each candidate prefix P ∉ Prefixes do
+          // Try adding P
+          cost_with ← TotalCost(Prefixes ∪ {P}, all_labels)
+          if cost_with < TotalCost(Prefixes, all_labels) then
+              Prefixes ← Prefixes ∪ {P}
+              improved ← true
+  until not improved
+
+  // Phase 3: Elaborate local search (add/remove/swap) [Jain et al.]
+  repeat
+      improved ← false
+      // Try swaps: simultaneously add P_new, remove P_old
+      for each P_old ∈ Prefixes, P_new ∉ Prefixes do
+          S' ← (Prefixes \ {P_old}) ∪ {P_new}
+          if TotalCost(S', all_labels) < TotalCost(Prefixes, all_labels) then
+              Prefixes ← S'
+              improved ← true
+      // Also try single adds and removes (as in Phase 2)
+  until not improved
+
+  return Prefixes, assignment of each label to its best-matching prefix
+
+------------------------------------------------------------------------
+Function: TotalCost(Prefixes, all_labels)
+  cost ← Σ_{P ∈ Prefixes} |P|                         // facility opening costs
+  for each label L do
+      P_best ← argmin_{P ∈ Prefixes, P is a prefix of L} (|L| - |P|)
+      cost ← cost + (|L| - |P_best|)                   // service cost
+  return cost
+
+========================================================================
+5.6  PARTITION ORACLE
+========================================================================
+
+Algorithm: BuildPartitionOracle(G, CH, k)
+  // Precompute an oracle matrix that allows early termination
+  // of HL queries for long-range (inter-cell) pairs.
+
+  Input : graph G, contraction hierarchy CH, number of cells k
+  Output: oracle matrix M[k × k]
+
+  // Step 1: Partition vertices into k cells, minimizing boundary vertices
+  {C1, ..., Ck} ← Partition(G, k)
+  b ← total number of boundary vertices
+
+  // Step 2: Modified CH — delay contraction of boundary vertices
+  Run CH but block contraction of boundary vertices
+    while |remaining vertices| > 2b
+  Once |remaining| ≤ 2b, restore normal priorities for boundary vertices
+  Complete CH
+  B+ ← { v : rank(v) ≥ rank(lowest-ranked boundary vertex) }
+      // |B+| ≤ 2b; includes all boundary vertices
+
+  // Step 3: Compute labels normally; store cell ID at start of each label
+  ComputeLabels(G, CH)
+  for each v do
+      Prepend cell(v) to Lf(v) and Lr(v)
+
+  // Step 4: Build oracle matrix
+  for i ← 1 to k do
+      for j ← 1 to k do
+          M[i][j] ← 0
+          for each u ∈ B+ ∩ Ci do
+              for each w ∈ B+ ∩ Cj do
+                  (d, meeting_vertex) ← HLQueryWithMeetingVertex(u, w)
+                  M[i][j] ← max(M[i][j], ID(meeting_vertex))
+
+  return M
+
+------------------------------------------------------------------------
+Algorithm: OracleQuery(s, t, Lf, Lr, M)
+  // HL query with early termination using partition oracle
+
+  Input : source s, target t, labels Lf/Lr, oracle matrix M
+  Output: dist(s, t)
+
+  i ← cell(s);  j ← cell(t)
+  cutoff ← M[i][j]
+
+  d_best ← sentinel_dist(s) + sentinel_dist(t)
+  p ← 0;  q ← 0
+  while p < |Lf(s)| and q < |Lr(t)| do
+      (u, d_u) ← Lf(s)[p]
+      (w, d_w) ← Lr(t)[q]
+
+      // Early termination: stop if both IDs exceed the oracle cutoff
+      if ID(u) > cutoff and ID(w) > cutoff then
+          break
+
+      if u = w then
+          d_best ← min(d_best, d_u + d_w)
+          p ← p + 1;  q ← q + 1
+      else if u < w then
+          p ← p + 1
+      else
+          q ← q + 1
+
+  return d_best
+
+========================================================================
+5.7  INDEX-FREE LABELS
+========================================================================
+
+Algorithm: BuildIndexFreeLabels(Lf, c)
+  // Eliminate the index array by reserving c bytes per label
+  // in a fixed-stride array.
+
+  Input : all forward labels Lf, byte budget c per label
+  Output: label_array[|V| * c], escape_array
+
+  label_array ← allocate |V| * c bytes
+  escape_array ← []
+
+  for each vertex v do
+      offset ← v * c
+      if size(Lf(v)) ≤ c then
+          // Label fits — store entirely in label_array
+          Copy Lf(v) into label_array[offset .. offset + c - 1]
+      else
+          // Label overflows — store first part + escape pointer
+          Copy first (c - ptr_size) bytes of Lf(v) into label_array[offset ..]
+          esc_pos ← current length of escape_array
+          Store esc_pos as pointer in label_array[offset + c - ptr_size]
+          Append remaining bytes of Lf(v) to escape_array
+
+  // Reverse labels are handled identically with a separate pair of arrays
+  return label_array, escape_array
+
+------------------------------------------------------------------------
+Algorithm: IndexFreeQuery(s, t, fwd_label_array, rev_label_array,
+                          fwd_escape, rev_escape, c)
+  // Query without index lookups — go directly to v*c in the array.
+
+  Input : source s, target t, label arrays, escape arrays, budget c
+  Output: dist(s, t)
+
+  // Read forward label of s
+  fwd_data ← fwd_label_array[s * c .. (s+1) * c - 1]
+  if sentinel not found in fwd_data then
+      // Label overflows: read escape pointer and continue from escape array
+      esc_ptr ← extract pointer from end of fwd_data
+      fwd_data ← fwd_data + fwd_escape[esc_ptr ..]
+
+  // Read reverse label of t
+  rev_data ← rev_label_array[t * c .. (t+1) * c - 1]
+  if sentinel not found in rev_data then
+      esc_ptr ← extract pointer from end of rev_data
+      rev_data ← rev_data + rev_escape[esc_ptr ..]
+
+  // Standard merge
+  return HLQuery(fwd_data, rev_data)
