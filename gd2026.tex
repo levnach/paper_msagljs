@@ -23,7 +23,7 @@
 \ccsdesc[500]{Human-centered computing~Graph drawings}
 \ccsdesc[300]{Theory of computation~Computational geometry}
 
-\keywords{Graph visualization, edge routing, Constrained Delaunay Triangulation, contraction hierarchies, hub labeling, tiling, WebGL}
+\keywords{Graph visualization, edge routing, Constrained Delaunay Triangulation, tiling, WebGL}
 
 \category{Track 2, Long Paper}
 
@@ -63,11 +63,29 @@
 \maketitle
 
 \begin{abstract}
-We present \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and interactive visualization in web browsers, distributed as a set of NPM packages\footnote{\texttt{@msagl/core}, \texttt{@msagl/drawing}, \texttt{@msagl/parser}, \texttt{@msagl/renderer-webgl} --- all available on \url{https://www.npmjs.com/}.}. It provides force-directed, Sugiyama, and MDS layouts with routed edges, rendered using WebGL via the deck.gl framework.
+We present \msagljs{}, an open-source TypeScript library for graph
+visualization in web browsers, distributed as a set of NPM
+packages\footnote{\texttt{@msagl/core}, \texttt{@msagl/drawing},
+\texttt{@msagl/parser}, \texttt{@msagl/renderer-webgl} --- all
+available on \url{https://www.npmjs.com/}.}. It provides a set of
+layout algorithms, a set of edge routing algorithms, and two renderers
+that run in an Internet browser: one based on SVG and another based on
+WebGL via the deck.gl framework. In this paper we concentrate on two
+features of the latter renderer.
 
-We describe two main contributions. First, a \emph{corridor routing} method that routes edges directly on the dual graph of a Constrained Delaunay Triangulation (CDT), producing for each edge the shortest path in its homotopy class. Each node's obstacle boundary defines \emph{portal triangles}---free-space CDT triangles adjacent to the obstacle---that serve as entry and exit points in a \emph{portal graph}. To accelerate the shortest-path queries on this graph, we preprocess it with Contraction Hierarchies and Hub Labeling, reducing per-edge query time from $O(T\log T)$ to $O(|L|)$, where $T$ is the number of free-space triangles and $|L|$ is the average hub-label size.
-
-Second, a \emph{tiling scheme} that enables map-like exploration of large graphs. The scheme builds a hierarchical tile pyramid, limits visible entities per tile using PageRank-based filtering, and simplifies edge routes at coarser levels. The WebGL renderer dynamically loads tiles based on the viewport, allowing smooth interaction with graphs of up to 10\,000 nodes and 40\,000 edges in a standard browser.
+First, a \emph{tiling scheme} that turns a large graph into a
+navigable map: at every zoom level the labels of the highest-ranked
+nodes remain readable, just as the names of major geographical
+features stay readable on digital maps---making the browsing
+experience familiar to anyone used to online maps. Second, a
+\emph{corridor routing} method that routes each edge along the
+shortest path in homotopy class around the node obstacles, based on
+the Constrained Delaunay Triangulation. The whole pipeline runs
+client-side, without a dedicated server, on a phone or a laptop. In
+this configuration the WebGL renderer interacts smoothly with graphs
+of up to 10\,000 nodes and 40\,000 edges.\TODO{Re-run benchmarks to
+  confirm the maximum graph size; current 10\,000 / 40\,000 figures
+  are placeholders.}
 
 \msagljs{} is available at \url{https://github.com/microsoft/msagljs}.
 \end{abstract}
@@ -84,14 +102,23 @@ Second, a \emph{tiling scheme} that enables map-like exploration of large graphs
 \section{Introduction}
 \label{sec:intro}
 
-Visualizing graphs in web browsers presents unique challenges: the runtime is single-threaded, memory is limited, and users expect the smooth pan-and-zoom experience familiar from online maps. \msagljs{}\footnote{\url{https://github.com/microsoft/msagljs}} is an open-source TypeScript library that addresses these challenges by combining efficient layout algorithms, a novel edge routing method, and a tiling scheme for level-of-detail rendering.
+Visualizing graphs in web browsers without a dedicated server presents
+unique challenges: the runtime is single-threaded, the per-tab
+JavaScript heap is capped at roughly 4\,GB,\footnote{In current
+Chrome, V8 with pointer compression caps the per-tab JavaScript heap
+at approximately $4\,\text{GB}$ ($2^{32}$ bytes).} and users expect
+the smooth pan-and-zoom experience familiar from online
+maps. \msagljs{}\footnote{\url{https://github.com/microsoft/msagljs}}
+is an open-source TypeScript library that addresses these challenges
+by combining efficient layout algorithms, a novel edge routing method,
+and a tiling scheme for level-of-detail rendering.
 
-\msagljs{} is consumed as a set of NPM packages and renders graphs using WebGL through the deck.gl framework~\cite{deckgl}. It supports force-directed, Sugiyama (layered), and MDS layouts, with edges routed around node obstacles. The rendering pipeline builds a hierarchy of tiles---analogous to map tiles---so that at any zoom level only a bounded number of entities are drawn. Live demos are available online: a WebGL renderer for large graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}} and an SVG renderer for smaller, editable graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
+\msagljs{} is consumed as a set of NPM packages and renders graphs using WebGL through the deck.gl framework~\cite{deckgl}. It supports the layered Sugiyama scheme~\cite{sugiyama1981}, Pivot MDS~\cite{brandes2007eigensolver}, and IPSep-CoLa~\cite{dwyer2006ipsepcola}, with edges routed around node obstacles. Throughout this paper our typical example is a social network laid out by IPSep-CoLa; the methods we describe, however, are agnostic to the layout algorithm and apply to any node placement in which the nodes do not overlap. The rendering pipeline builds a hierarchy of tiles---analogous to map tiles---so that at any zoom level only a bounded number of entities are drawn. Tiles are delivered to the browser through the standard \texttt{TileLayer} of the \texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. Live demos are available online: a WebGL renderer for large graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}} and an SVG renderer for smaller, editable graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
 
 This paper makes two main contributions:
 \begin{enumerate}
-\item A \emph{corridor routing} algorithm that routes edges on the dual graph of a Constrained Delaunay Triangulation. The method introduces a \emph{portal graph} that connects node obstacles through free-space CDT triangles, and accelerates shortest-path queries using Contraction Hierarchies~\cite{geisberger2012exact} and Hub Labeling~\cite{abraham2011hub}.
-\item A \emph{tiling scheme} for large graph visualization that limits visible entities per tile, simplifies edge routes at coarser levels, and integrates with the WebGL renderer for real-time pan and zoom.
+\item A \emph{tiling scheme} for large graph visualization that builds a hierarchical tile pyramid, limits visible entities per tile using PageRank-based filtering, simplifies edge routes at coarser levels, and integrates with the WebGL renderer for real-time pan and zoom.
+\item A \emph{corridor routing} algorithm that routes edges on the dual graph of a Constrained Delaunay Triangulation, using per-source batched Dijkstra trees followed by the classical funnel algorithm to produce shortest-path geodesics in homotopy classes.
 \end{enumerate}
 
 %% ═══════════════════════════════════════════════════════════════════
@@ -99,16 +126,48 @@ This paper makes two main contributions:
 \label{sec:related}
 
 \paragraph{Graph visualization tools.}
-Graphviz~\cite{gansner2000graphviz,graphviz} is a long-standing graph drawing tool supporting multiple layout algorithms, including the Sugiyama method and Scalable Force-Directed Placement~\cite{sfdp}; it does not support tiling or WebGL rendering. Our library builds on the earlier MSAGL desktop layout engine~\cite{nachmanson2004glee}. On the web, Sigma.js~\cite{sigmajs} and Cytoscape.js~\cite{franz2016cytoscape} provide interactive graph rendering, but rely on straight-line or generic spline edges without obstacle-avoiding routing and without a pyramid of precomputed tiles. ReGraph~\cite{regraph} uses WebGL to render large graphs with straight-line edges and supports interactive cluster expansion but not tiling. Cosmograph~\cite{cosmograph} uses GPU-accelerated force-directed layout for million-node graphs with straight-line edges, without tiling. GraphMaps~\cite{nachmanson2015graphmaps} supports tiling and level-of-detail for large graphs but runs only on Windows and does not optimize edge routes. Cornac~\cite{perrot2018cornac} handles huge graphs with tiles and edge bundling~\cite{hurter2012graph,holten2009fdeb} but requires a multi-server backend. Earlier navigation schemes for large graphs include ASK-GraphView~\cite{abello2006askgraphview}, which organizes nodes into a hierarchical cluster tree, and topological fisheye views~\cite{gansner2005topological}, which distort a multilevel layout~\cite{harel2002multiscale,hu2005efficient} under the focus; neither targets browser-side tile pyramids or per-level edge rerouting. Hierarchical edge bundling~\cite{holten2006hierarchical} and force-directed bundling~\cite{holten2009fdeb} are complementary clutter-reduction techniques applied \emph{after} edges have been routed.
+Graphviz~\cite{gansner2000graphviz,graphviz} is a long-standing graph
+drawing tool supporting multiple layout algorithms, including the
+Sugiyama method and Scalable Force-Directed Placement~\cite{sfdp}; it
+does not support tiling or WebGL rendering. Our library builds on the
+earlier MSAGL desktop layout engine~\cite{nachmanson2004glee} that did
+not have the features described here. On the web,
+Sigma.js~\cite{sigmajs} and Cytoscape.js~\cite{franz2016cytoscape}
+provide interactive graph rendering, but rely on straight-line or
+generic spline edges without obstacle-avoiding routing and without a
+pyramid of precomputed tiles. ReGraph~\cite{regraph} uses WebGL to
+render large graphs with straight-line edges and supports interactive
+cluster expansion but not tiling. Cosmograph~\cite{cosmograph} uses
+GPU-accelerated force-directed layout for million-node graphs with
+straight-line edges, without
+tiling. GraphMaps~\cite{nachmanson2015graphmaps} supports tiling and
+level-of-detail for large graphs but runs only on Windows and does not
+optimize edge routes. Cornac~\cite{perrot2018cornac} handles huge
+graphs with tiles and edge
+bundling~\cite{hurter2012graph,holten2009fdeb} but requires a
+multi-server backend. Earlier navigation schemes for large graphs
+include ASK-GraphView~\cite{abello2006askgraphview}, which organizes
+nodes into a hierarchical cluster tree, and topological fisheye
+views~\cite{gansner2005topological}, which distort a multilevel
+layout~\cite{harel2002multiscale,hu2005efficient} under the focus;
+neither targets browser-side tile pyramids or per-level edge
+rerouting. Hierarchical edge bundling~\cite{holten2006hierarchical}
+and force-directed bundling~\cite{holten2009fdeb} are complementary
+clutter-reduction techniques applied \emph{after} edges have been
+routed.
 
-\paragraph{Shortest paths in polygonal domains.}
-Our corridor algorithm walks the dual of a Constrained Delaunay Triangulation~\cite{shewchuk2002delaunay} and relies on the classical funnel algorithm for extracting a geodesic from a triangle strip~\cite{lee1984euclidean,chazelle1982theorem,guibas1987linear,pathOpt}; optimal shortest-path algorithms in polygonal domains with holes~\cite{hershberger1999optimal} use related ideas but build a full shortest-path map, which we avoid.
-
-\paragraph{Edge routing.}
+\paragraph{Shortest paths and edge routing.}
+Our corridor algorithm walks the dual of a Constrained Delaunay
+Triangulation~\cite{shewchuk2002delaunay} and relies on the classical
+funnel algorithm for extracting a geodesic from a triangle
+strip~\cite{lee1984euclidean,chazelle1982theorem,guibas1987linear,pathOpt}.
+The optimal algorithm for Euclidean shortest paths among polygonal
+obstacles~\cite{hershberger1999optimal} and the recent
+$O(m\log^{2/3} n)$ single-source shortest-path algorithm that breaks
+the sorting barrier~\cite{duan2025sorting} are remarkable theoretical
+results, but they are not practical: both build elaborate global data
+structures that we avoid.
 Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}. Our corridor method eliminates the spanner entirely and routes directly on the CDT dual graph, and is, to our knowledge, the first routing algorithm integrated with a browser-side tile pyramid that reroutes edges per level.
-
-\paragraph{Shortest-path speedup.}
-We adapt speedup techniques from road-network routing~\cite{bast2016route}. Contraction Hierarchies (CH)~\cite{geisberger2012exact} preprocess a graph by iteratively contracting nodes and adding shortcut edges, enabling bidirectional Dijkstra queries that explore only a small fraction of the graph. Hub Labeling (HL)~\cite{abraham2011hub} extends CH by precomputing, for each node, a compact set of \emph{hub} nodes and distances, so that shortest-path queries reduce to a linear-time merge of two sorted label arrays. A*~\cite{hart1968formal} and its landmark-based variant ALT~\cite{goldberg2005ALT} use goal-directed heuristics instead of a hierarchy; we use plain A* with a Euclidean heuristic for per-level rerouting, where the sleeve hint from the finer level plays the role of a landmark. These techniques were developed for road networks but apply naturally to our CDT dual graph, which has bounded degree: each triangle has at most three neighbors.
 
 
 %% ═══════════════════════════════════════════════════════════════════
@@ -118,7 +177,7 @@ We adapt speedup techniques from road-network routing~\cite{bast2016route}. Cont
 \msagljs{} is organized as a monorepo with five NPM packages:
 
 \begin{description}
-\item[\texttt{@msagl/core}] --- Graph data structures, layout algorithms (Sugiyama, force-directed, MDS), edge routing, CDT, tiling.
+\item[\texttt{@msagl/core}] --- Graph data structures, layout algorithms (Sugiyama, MDS, IPSep-CoLa), edge routing, CDT, tiling.
 \item[\texttt{@msagl/drawing}] --- Visual attributes (colors, shapes, labels) bridging the graph model and renderers.
 \item[\texttt{@msagl/parser}] --- Parsers for DOT and JSON graph formats.
 \item[\texttt{@msagl/renderer-svg}] --- SVG-based renderer for small graphs.
@@ -138,14 +197,18 @@ The WebGL renderer (Section~\ref{sec:webgl}) consumes the tile hierarchy and ren
 \section{Tiling}
 \label{sec:tiling}
 
-To visualize large graphs interactively, \msagljs{} builds a pyramid of tiles analogous to those used in online maps. Levels are numbered $0,1,\dots,Z$ from coarsest to finest; the finest level~$Z$ shows the full graph produced by the layout and the corridor router presented in Section~\ref{sec:corridor}. The construction proceeds in three phases.
+To visualize large graphs interactively, \msagljs{} builds a pyramid of tiles analogous to those used in online maps. Levels are numbered $0,1,\dots,Z$ from coarsest to finest; the finest level~$Z$ shows the full graph produced by the layout and the corridor router presented in Section~\ref{sec:corridor}. At any zoom only the few tiles of the current level that intersect the viewport are fetched and drawn, so rendering cost is proportional to the number of entities in those visible tiles, not to the size of the graph. The construction proceeds in three phases.
 
 \subsection{Tile Hierarchy Construction}
 \label{sec:tile-build}
 
 A tile is a pair $(\mathit{rect}, \mathit{tiledata})$, where $\mathit{tiledata}$ is a set of \emph{tile elements}: nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge clip is a pair $(e, p)$, with $p$ a continuous piece of the edge curve $c_e$ confined to $\mathit{rect}$.
 
-The single tile at level~$Z$ is obtained by clipping every element to the graph's bounding box. To build level~$z-1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines, producing sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$. Subdivision of a level stops as soon as either of the following holds: (i)~every tile at that level already contains at most \capac{} elements, with \capac{} default $5\,000$, so no tile needs splitting; or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively, so further splitting would produce tiles smaller than the nodes they must display.
+The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines, producing sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$. Subdivision of a level stops as soon as either of the following holds:
+(i)~every tile at that level already contains at most \capac{} elements;
+or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively.
+The first condition uses a default \capac{}~$=500$, so a tile that is
+already light enough is not splitg. The second condition prevents producing tiles smaller than the nodes they display.
 
 \subsection{Per-Level Graph and PageRank-Guided Filtering}
 \label{sec:filter}
@@ -173,7 +236,7 @@ We describe an edge routing method that routes edges directly on the dual graph 
 
 \subsection{CDT Construction and the Dual Graph}
 
-Given the graph layout, each node is covered by a padded obstacle polygon. We compute a Constrained Delaunay Triangulation \cdt{} on the set \obst{} of these obstacle polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual graph} $D$ of \cdt{} has one node per triangle and one edge for each pair of triangles sharing a side. A triangle is \emph{free-space} if it is not contained in any obstacle interior (i.e., not all three of its vertices belong to the same obstacle). The dual-graph edge weight is the Euclidean distance between triangle centroids.
+Given the graph layout, each node is covered by a padded obstacle polygon. We compute a Constrained Delaunay Triangulation \cdt{} on the set \obst{} of these obstacle polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual graph} $D$ of \cdt{} has one node per triangle and one edge for each pair of triangles sharing a side. A triangle is \emph{free-space} if it is not contained in any obstacle interior. Each triangle of an A* (or Dijkstra) path is entered through one shared edge and left through another; the cost of the step taken inside the triangle is the Euclidean distance between the midpoints of those two edges. For the source triangle, which has no entering edge, the centroid is used as the entry point.
 
 \subsection{A* Search on the Dual Graph}
 \label{sec:astar}
@@ -226,88 +289,15 @@ To route a graph edge from node~$w$ to node~$u$, we find the shortest path in~$G
 \item An \emph{interior path} from $p_j^u$ through $u$'s obstacle to~$c_u$.
 \end{enumerate}
 
-The free-space segment (2) is the bottleneck: it requires a shortest-path query on the free-space dual graph, which may contain thousands of triangles. Sections~\ref{sec:ch} and~\ref{sec:hl} show how to accelerate this query.
+The free-space segment (2) is the bottleneck: it requires a shortest-path query on the free-space dual graph, which may contain thousands of triangles. We answer these queries with the batched Dijkstra trees of Section~\ref{sec:dijkstra}.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.75\textwidth]{portal_graph_melisandre_stannis.pdf}
-  \caption{The portal graph for the MELISANDRE--STANNIS edge on the Game of Thrones social network. Orange triangles are portals---free-space CDT triangles adjacent to the obstacle boundary. Blue dashed arrows show interior edges from node centers to portal centroids. Green-shaded triangles form the free-space corridor found via Hub Labeling. The thick red polyline shows the shortest path $c_{\text{MEL}} \to p_i \to \cdots \to p_j \to c_{\text{STAN}}$. Nearby node obstacles are shown in gray.}
+  \caption{The portal graph for the MELISANDRE--STANNIS edge on the Game of Thrones social network. Orange triangles are portals---free-space CDT triangles adjacent to the obstacle boundary. Blue dashed arrows show interior edges from node centers to portal centroids. Green-shaded triangles form the free-space corridor found by the batched Dijkstra search. The thick red polyline shows the shortest path $c_{\text{MEL}} \to p_i \to \cdots \to p_j \to c_{\text{STAN}}$. Nearby node obstacles are shown in gray.}
   \label{fig:portal-graph}
 \end{figure}
 
-
-%% ═══════════════════════════════════════════════════════════════════
-\section{Contraction Hierarchies on the CDT Dual}
-\label{sec:ch}
-
-To accelerate free-space queries in the portal graph, we preprocess the free-space CDT dual graph using Contraction Hierarchies (CH)~\cite{geisberger2012exact}.
-
-\subsection{Preprocessing}
-
-The CH is built on the free-space dual graph: only triangles not contained in any obstacle interior are included. Each node (triangle) has at most three neighbors (since each triangle has three sides), so the graph is sparse throughout preprocessing.
-
-Nodes are contracted in order of increasing \emph{edge difference}: the number of shortcuts added minus the number of edges removed. When contracting a node~$v$ with neighbors $a$ and~$b$, if the shortest path from~$a$ to~$b$ passes through~$v$, a \emph{shortcut} arc is added from~$a$ to~$b$ with weight $w(a,v) + w(v,b)$. The shortcut stores a \emph{midNode} pointer to~$v$ for later path unpacking. Each contracted node receives a \emph{rank} equal to its contraction order.
-
-\subsection{Bidirectional Query}
-
-Given source and target triangles, the CH query runs bidirectional Dijkstra where both the forward and backward searches follow only \emph{upward arcs}---arcs to nodes of higher rank. The searches meet at some node~$\mu$ of highest rank on the shortest path. The query time is $O(\log T)$ in practice, where $T$ is the number of free-space triangles, because the upward-only searches explore far fewer nodes than a standard Dijkstra.
-
-\subsection{Sleeve Recovery}
-
-The shortest path found by the CH query is a sequence of CH arcs, some of which are shortcuts. To obtain the corridor (sleeve) for the funnel algorithm, we recursively \emph{unpack} each shortcut: an arc from~$a$ to~$b$ with midNode~$v$ is replaced by the arcs $a \to v$ and $v \to b$, continuing until all arcs correspond to original CDT edges. The resulting sequence of CDT edges defines the corridor through which the funnel algorithm produces the final polyline path.
-
-%% ═══════════════════════════════════════════════════════════════════
-\section{Hub Labeling for $O(|L|)$ Queries}
-\label{sec:hl}
-
-While CH queries are fast, the per-query cost can be further reduced using Hub Labeling (HL)~\cite{abraham2011hub}. HL precomputes, for each node~$v$, a \emph{label}~$L(v)$ consisting of pairs $(h, \delta(v,h))$ where $h$ is a \emph{hub} node and $\delta(v,h)$ is the shortest-path distance from~$v$ to~$h$. Labels satisfy the \emph{cover property}: for every pair $(s,t)$, the shortest $s$--$t$ path passes through some hub in $L(s) \cap L(t)$.
-
-\subsection{Label Construction}
-
-Labels are computed by processing nodes in decreasing CH rank order. For each node~$v$, a forward CH search (following only upward arcs) is run from~$v$. The search applies \emph{stall-on-demand} pruning~\cite{abraham2011hub}: a node~$w$ is stalled if some already-settled neighbor provides a shorter path to~$w$, indicating that~$w$'s optimal label entry will come from a higher-ranked node. The surviving search entries form~$L(v)$.
-
-Each label is stored as three parallel arrays---hub indices, distances, and parent pointers---sorted by hub index to enable efficient merging.
-
-\subsection{$O(|L|)$ Query}
-
-Given source~$s$ and target~$t$, the query merges their sorted label arrays with a two-pointer sweep:
-\begin{algorithmic}[1]
-\State $i_s \gets 0,\; i_t \gets 0,\; d^* \gets \infty$
-\While{$i_s < |L(s)|$ \textbf{and} $i_t < |L(t)|$}
-  \If{$L(s)[i_s].\text{hub} = L(t)[i_t].\text{hub}$}
-    \State $d^* \gets \min(d^*,\; L(s)[i_s].\text{dist} + L(t)[i_t].\text{dist})$
-    \State $i_s \gets i_s + 1;\; i_t \gets i_t + 1$
-  \ElsIf{$L(s)[i_s].\text{hub} < L(t)[i_t].\text{hub}$}
-    \State $i_s \gets i_s + 1$
-  \Else
-    \State $i_t \gets i_t + 1$
-  \EndIf
-\EndWhile
-\State \Return $d^*$
-\end{algorithmic}
-
-The query runs in $O(|L|)$ time, where $|L|$ is the average label size. For CDT dual graphs with bounded degree, labels are compact in practice.
-
-\subsection{Routing with Hub Labels}
-\label{sec:hl-routing}
-
-The full routing pipeline using Hub Labels proceeds as follows:
-\begin{enumerate}
-\item Build the CDT on padded obstacle polylines and construct the triangle index.
-\item Build CH and HL on the \emph{free-space} CDT dual graph (excluding obstacle interiors).
-\item For each graph node, compute its portal triangles and map them to CH/HL indices.
-\item For each graph edge $w \to u$:
-  \begin{enumerate}
-  \item Query HL for all portal pairs $(p_i^w, p_j^u)$, computing the total distance as $\delta(c_w, p_i^w) + \text{HL}(p_i^w, p_j^u) + \delta(p_j^u, c_u)$.
-  \item Select the pair minimizing total distance.
-  \item Recover the free-space sleeve from HL parent pointers and unpack CH shortcuts.
-  \item Compute interior paths from centers to portals via BFS through obstacle triangles.
-  \item Stitch the three sleeve segments (source interior, free-space, target interior).
-  \item Apply vertex collapse (Section~\ref{sec:collapse}), then the funnel algorithm to produce the final polyline.
-  \end{enumerate}
-\end{enumerate}
-
-The CH/HL preprocessing is done once and amortized over all edges. For a graph with $m$ edges, $n$ nodes, and $T$ free-space triangles, the total routing cost is $O(T \log T)$ for preprocessing plus $O(m \cdot |L|)$ for all queries, compared to $O(m \cdot T \log T)$ for per-edge Dijkstra.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{WebGL Rendering}
@@ -340,36 +330,34 @@ The renderer supports pan, zoom, hover highlighting, and click selection. Hoveri
 
 We evaluate the corridor routing method on benchmark graphs from the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest~\cite{composers}, the Graphviz test suite~\cite{b103,b100}, and the Gnutella P2P network~\cite{gnutella}. All experiments run in Node.js on a laptop with an Apple M1 processor. Layout uses Pivot MDS; timings include CDT construction, routing, and curve smoothing.
 
-Table~\ref{tab:perf} compares the Dijkstra-tree corridor router (Section~\ref{sec:dijkstra}) against the Hub-Labeling router (Section~\ref{sec:hl-routing}). For each graph, we report the number of CDT triangles, free-space triangles (which form the CH/HL graph), the total number of portal triangles across all nodes, the average and maximum hub-label sizes~$|L|$, and the total routing time.
+Table~\ref{tab:perf} reports the performance of the Dijkstra-tree corridor router (Section~\ref{sec:dijkstra}). For each graph, we report the number of CDT triangles, free-space triangles, the total number of portal triangles across all nodes, and the total routing time.
 
 \begin{table}[t]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{3pt}
-  \begin{tabular}{@{}lrrrrrrrrr@{}}
+  \begin{tabular}{@{}lrrrrrr@{}}
     \hline
-    Graph & Nodes & Edges & CDT\,$\triangle$ & Free\,$\triangle$ & Portals & Avg\,$|L|$ & Max\,$|L|$ & Dijkstra\,(ms) & HL\,(ms) \\
+    Graph & Nodes & Edges & CDT\,$\triangle$ & Free\,$\triangle$ & Portals & Dijkstra\,(ms) \\
     \hline
-    GoT~\cite{beveridge2018game} & 407 & 2\,639 & 3\,258 & 2\,444 & 1\,628 & 36.6 & 59 & 277 & 313 \\
-    b103~\cite{b103} & 944 & 2\,438 & 7\,554 & 5\,666 & 3\,776 & 57.9 & 89 & 754 & 882 \\
-    b100~\cite{b100} & 1\,463 & 5\,806 & 11\,706 & 8\,780 & 5\,852 & 68.2 & 103 & 2\,120 & 2\,755 \\
-    composers~\cite{composers} & 3\,405 & 13\,832 & 27\,242 & 20\,432 & 13\,620 & 94.9 & 143 & 9\,335 & 11\,699 \\
-    Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 87\,010 & 65\,258 & 43\,504 & 163.5 & 255 & 93\,760 & 90\,746 \\
+    GoT~\cite{beveridge2018game} & 407 & 2\,639 & 3\,258 & 2\,444 & 1\,628 & 277 \\
+    b103~\cite{b103} & 944 & 2\,438 & 7\,554 & 5\,666 & 3\,776 & 754 \\
+    b100~\cite{b100} & 1\,463 & 5\,806 & 11\,706 & 8\,780 & 5\,852 & 2\,120 \\
+    composers~\cite{composers} & 3\,405 & 13\,832 & 27\,242 & 20\,432 & 13\,620 & 9\,335 \\
+    Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 87\,010 & 65\,258 & 43\,504 & 93\,760 \\
     \hline
   \end{tabular}
-  \caption{Corridor routing benchmarks. Dijkstra: per-source Dijkstra trees on the CDT dual. HL: Hub Labeling with CH preprocessing (includes the CH+HL build time of 76--30\,480\,ms). Avg~$|L|$ and Max~$|L|$ are the average and maximum hub-label sizes across all free-space triangles.}
+  \caption{Corridor routing benchmarks. Dijkstra: per-source Dijkstra trees on the CDT dual.}
   \label{tab:perf}
 \end{table}
 
-The Dijkstra-tree approach is faster on the smaller graphs because the CH+HL preprocessing cost is not amortized when routing is done only once. However, on Gnutella04 (10\,876 nodes, 39\,994 edges), the HL router matches Dijkstra at 91\,s vs.\ 94\,s, since the per-query savings from $O(|L|)$ queries offset the 30\,s preprocessing cost. The HL approach would become more advantageous in scenarios requiring repeated re-routing (e.g., interactive editing or level-of-detail re-routing during tiling), where the preprocessing cost is paid once.
-
-The average label size grows sub-linearly with the number of free-space triangles: $|L| \approx 37$ for 2\,444 triangles and $|L| \approx  164$ for 65\,258 triangles. The maximum label size remains moderate (59--255), confirming that CDT dual graphs---with their bounded degree of~3---produce compact hub labels.
+The Dijkstra-tree approach scales to graphs with tens of thousands of edges. Routing the full Gnutella04 graph (10\,876 nodes, 39\,994 edges) on an Apple M1 laptop takes about 94\,s, which is amortized in interactive use because tile pyramids cache the routes computed at the finest level and rerun only the per-level A* described in Section~\ref{sec:tiling} on coarser zooms.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The corridor routing method routes edges directly on the CDT dual graph using a portal graph abstraction, accelerated by Contraction Hierarchies and Hub Labeling. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
+We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The corridor routing method routes edges directly on the CDT dual graph using a portal graph abstraction and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
 
 \msagljs{} is available at \url{https://github.com/microsoft/msagljs} under the MIT license.
 
