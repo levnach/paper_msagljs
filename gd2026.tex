@@ -349,7 +349,35 @@ Subdivision of a level stops as soon as either of the following holds: (i)~every
 
 Table~\ref{tab:max-per-tile} reports the resulting maximum number of elements rendered in a single tile across the entire pyramid for a range of graphs.
 
-\input{tile_max_per_tile_table.tex}
+% Generated from runs of modules/core/test/layout/maxPerTile.spec.ts
+% (capacity C=500, build up to Z=8).
+\begin{table}[t]
+\caption{Maximum number of elements rendered in a single tile across
+  the whole pyramid for several graphs (capacity $\mathcal{C}=500$,
+  $Z_{\max}=8$). The capacity~$\mathcal{C}$ only guides the choice
+  of~$Z$; we have no tight analytical bound on the actual rendered
+  per-tile element count, which is therefore reported
+  empirically. ``Max tile's level'' is the level on which the maximum
+  tile was found. In the worst cases (\texttt{facebook\_combined},
+  \texttt{ca-CondMat}) the densest tile holds 20--30$\times$ the
+  nominal capacity~$\mathcal{C}$.}
+\label{tab:max-per-tile}
+\centering
+\begin{tabular}{lrrrrr}
+\toprule
+Graph & $|V|$ & $|E|$ & Levels built & Max per tile & Max tile's level \\
+\midrule
+gameofthrones      &     407 &   2\,639 & 5 &  1\,168 & 4 \\
+composers          &  3\,405 &  13\,832 & 8 &  3\,317 & 7 \\
+ca-GrQc            &  5\,241 &  14\,484 & 8 &     934 & 7 \\
+ca-HepTh           &  9\,875 &  25\,973 & 9 &  1\,598 & 8 \\
+facebook\_combined &  4\,039 &  88\,234 & 9 & 11\,874 & 8 \\
+ca-CondMat         & 23\,133 & 186\,878 & 9 & 13\,744 & 8 \\
+deezer\_europe     & 28\,281 &  92\,752 & 9 &  8\,201 & 8 \\
+delaunay\_n15      & 32\,768 &  98\,274 & 9 &     611 & 8 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Corridor Routing on the CDT}
