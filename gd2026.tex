@@ -187,12 +187,12 @@ Graphviz builds the full visibility graph for edge routing in force-directed lay
 
 The layout pipeline proceeds in three phases:
 \begin{enumerate}
-\item \textbf{Layout.} Node positions are computed by the chosen algorithm. For large undirected graphs the default is force-directed layout (IPsepCola) initialized with Pivot MDS~\cite{brandes2007eigensolver}; for directed graphs, Sugiyama layout is used.
-\item \textbf{Edge routing.} Edges are routed around node obstacles. The routing mode is configurable; this paper focuses on \emph{corridor routing} (Section~\ref{sec:corridor}).
-\item \textbf{Tiling.} A tile hierarchy is built for level-of-detail rendering (Section~\ref{sec:tiling}).
+\item \textbf{Layout.} Node positions are computed by the chosen algorithm. For large undirected graphs the default is force-directed layout, IPsepCola, initialized with Pivot MDS~\cite{brandes2007eigensolver}; for directed graphs, Sugiyama layout is used.
+\item \textbf{Edge routing.} Edges are routed around node obstacles. The routing mode is configurable; this paper focuses on \emph{corridor routing}, Section~\ref{sec:corridor}.
+\item \textbf{Tiling.} A tile hierarchy is built for level-of-detail rendering, Section~\ref{sec:tiling}.
 \end{enumerate}
 
-The WebGL renderer (Section~\ref{sec:webgl}) consumes the tile hierarchy and renders the appropriate level of detail based on the current viewport.
+The WebGL renderer of Section~\ref{sec:webgl} consumes the tile hierarchy and renders the appropriate level of detail based on the current viewport.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Tiling}
@@ -212,23 +212,24 @@ Conceptually, each tile is associated with a rectangular viewport and
 holds the graph elements that lie within it: the single tile at
 level~$0$ is associated with a viewport covering the entire drawing,
 so it contains the whole graph. When rendering, every level shows only
-a prefix of the graph elements ranked by importance, and each tile
-renders the part of that prefix that lies within its viewport; the
-remaining elements are hidden. The per-tile capacity~$\mathcal{C}$
-only governs the choice of $Z$ (when to stop subdividing) and is not
+a subset of a rank-prefix of the graph elements: candidates are taken in order of
+decreasing importance, but a candidate is skipped if drawing it would
+overlap a higher-ranked one already accepted. Each tile then renders the
+part of the accepted set that lies within its viewport; the remaining
+elements are hidden. The per-tile capacity~$\mathcal{C}$
+only governs the choice of $Z$, that is, when to stop subdividing, and is not
 consulted when deciding what to render at each level: the selection of
 visible elements per level is driven entirely by importance and
-geometric non-overlap (Section~\ref{sec:filter}). Only the finest
+geometric non-overlap, Section~\ref{sec:filter}. Only the finest
 level~$Z$ displays every node and edge of the graph.
 
 \emph{Per-tile rendering load.} At the finest level, condition~(i) is
-intended to cap each tile at $\mathcal{C}$ visible elements (nodes
-plus edge clips, default $\mathcal{C}=500$). On dense graphs, however,
+intended to cap each tile at $\mathcal{C}$ elements, nodes
+plus edge clips, with default $\mathcal{C}=500$. On dense graphs, however,
 either the depth cap $Z_{\max}=8$ or the minimum tile size~(ii) binds
 first, in which case the densest finest-level tile may hold many more
 than $\mathcal{C}$ elements. For a coarser level~$z<Z$ we ignore
-$\mathcal{C}$ when preparing a tile for rendering. We apply semantic
-zoom on the nodes, (Section~\ref{sec:filter}) by inflating each
+$\mathcal{C}$ when preparing a tile for rendering. We apply semantic zoom on the nodes, as detailed in Section~\ref{sec:filter}, by inflating each
 surviving node by roughly $2^{Z-z}$ in linear size. The chosen nodes
 define the rendered edges: we render the edges connecting two chosen
 nodes. Table~\ref{tab:max-per-tile} reports the
@@ -239,8 +240,8 @@ than fixed in advance. We initialize $Z=0$ with the single root tile
 covering the whole drawing. While the tiles at level~$Z$ violate
 conditions~(i)~or~(ii) below, we increase $Z$ by one and split every
 tile of the previous finest level into four equal sub-tiles. The two
-conditions are: (i)~every tile contains at most~$\mathcal{C}$ visible
-elements (default $\mathcal{C}=500$), preventing overloaded tiles; and
+conditions are: (i)~every tile contains at most~$\mathcal{C}$
+elements, with default $\mathcal{C}=500$, preventing overloaded tiles; and
 (ii)~the tile width and height are both below ten times the average
 node width and height, preventing tiles smaller than the nodes they
 display. We additionally enforce a hard cap $Z \le Z_{\max}$ derived from a
@@ -272,12 +273,12 @@ levels.
 \paragraph{Three phases.} Once $Z$ and the tile rectangles are fixed,
 construction proceeds in three phases for every coarser level
 $z=Z{-}1, Z{-}2, \dots, 0$: (1)~use PageRank to pick the nodes shown
-at level~$z$ and possibly enlarge them
-(Section~\ref{sec:filter}); (2)~reroute the edges of $G_z$ around
+at level~$z$ and possibly enlarge them,
+Section~\ref{sec:filter}; (2)~reroute the edges of $G_z$ around
 these obstacles, which may now be enlarged,
-(Section~\ref{sec:level-reroute}); (3)~recompute the per-tile edge
-clips at level~$z$ by splitting the new curves at tile boundaries
-(Section~\ref{sec:tile-build}). Figure~\ref{fig:tile-pyramid} on the
+Section~\ref{sec:level-reroute}; (3)~recompute the per-tile edge
+clips at level~$z$ by splitting the new curves at tile boundaries,
+Section~\ref{sec:tile-build}. Figure~\ref{fig:tile-pyramid} on the
 first page shows two adjacent pyramid levels built by this procedure.
 Algorithm~\ref{alg:build-pyramid} summarizes the whole pipeline.
 
@@ -320,14 +321,14 @@ The intuition is a greedy seniority sweep: highly ranked nodes ``claim'' as much
 \[
 T_z \;=\; \{\,v_0,v_1,\dots,v_{n_z-1}\,\},\qquad n_z=\bigl\lceil |V|/2^{\,Z-z}\bigr\rceil,
 \]
-i.e.\ a fixed-size prefix of the \emph{globally} rank-sorted node list, halving in size with each coarser level. We process $T_z$ in rank-descending order. Each candidate~$v$ is assigned the largest scale~$s_v\le S_z$ at which its bounding box, scaled about $v$'s center and inflated by a margin~$m$ that absorbs the obstacle padding used by the corridor router (Section~\ref{sec:corridor}) and leaves a visible gap between obstacles after triangulation, stays disjoint from the inflated boxes of every already-accepted node. Disjointness is a closed-form, axis-aligned separating-axis test, so $s^\star(v)$ is obtained directly from box centers and dimensions; if $s^\star(v)\ge 1$ the candidate is accepted at $s_v=\min(\sigma, s^\star(v))$, where the running cap~$\sigma$ (initially $S_z$) is then tightened to~$s_v$ to forbid any later, lower-ranked node from being drawn larger than its accepted seniors. Because $v_0$ is processed first against an empty accepted set, it always survives at the full scale~$S_z$. The accepted set becomes~$V_z$ and the per-node scales~$\{s_v^{(z)}\}$ are stored for the level. Because $T_z\subseteq T_{z+1}$ and at coarser levels boxes are only larger (so an already-tight overlap configuration cannot become looser), acceptance is monotone in~$z$: $V_z\subseteq V_{z+1}$, as required by the level-graph definition. The result is the intended map-like effect: a few large landmarks at coarse zooms, progressively more detail as the user zooms in, and a guaranteed visible gap of at least~$2m$ between every pair of un-inflated scaled boxes.
+i.e.\ a fixed-size prefix of the \emph{globally} rank-sorted node list, halving in size with each coarser level. We process $T_z$ in rank-descending order. Each candidate~$v$ is assigned the largest scale~$s_v\le S_z$ at which its bounding box, scaled about $v$'s center and inflated by a margin~$m$ that absorbs the obstacle padding used by the corridor router, Section~\ref{sec:corridor}, and leaves a visible gap between obstacles after triangulation, stays disjoint from the inflated boxes of every already-accepted node. Disjointness is a closed-form, axis-aligned separating-axis test, so $s^\star(v)$ is obtained directly from box centers and dimensions; if $s^\star(v)\ge 1$ the candidate is accepted at $s_v=\min(\sigma, s^\star(v))$, where the running cap~$\sigma$ (initially $S_z$) is then tightened to~$s_v$ to forbid any later, lower-ranked node from being drawn larger than its accepted seniors. Because $v_0$ is processed first against an empty accepted set, it always survives at the full scale~$S_z$. The accepted set becomes~$V_z$ and the per-node scales~$\{s_v^{(z)}\}$ are stored for the level. Because $T_z\subseteq T_{z+1}$ and at coarser levels boxes are only larger (so an already-tight overlap configuration cannot become looser), acceptance is monotone in~$z$: $V_z\subseteq V_{z+1}$, as required by the level-graph definition. The result is the intended map-like effect: a few large landmarks at coarse zooms, progressively more detail as the user zooms in, and a guaranteed visible gap of at least~$2m$ between every pair of un-inflated scaled boxes.
 
 To avoid testing every candidate against every previously accepted box, accepted boxes are maintained in a uniform spatial hash whose cell size is an upper bound on the inflated box dimension at the current level. Two boxes can overlap only if their center cells are within one step on each axis, so each candidate consults at most nine cells. On the layouts we tested the expected work per candidate is~$O(1)$, giving an overall expected cost of $O(|T_z|\log|T_z|)$ dominated by the initial sort; the worst case, when many boxes pile into a single cell, degrades to $O(|T_z|\cdot|V_z|)$.
 
 \subsection{Stable Per-Level Rerouting with a Routing Hint}
 \label{sec:level-reroute}
 
-Because $G_{z-1}$ has fewer obstacles than $G_z$, and different ones on account of the enlargement of~$v_0$, edges of~$G_{z-1}$ must be rerouted: the finest-level curves would otherwise pierce the enlarged landmark boxes. We rerun the corridor router (Section~\ref{sec:corridor}) on the active edges of $G_{z-1}$, but with two modifications that secure visual stability during zoom.
+Because $G_{z-1}$ has fewer obstacles than $G_z$, and different ones on account of the enlargement of~$v_0$, edges of~$G_{z-1}$ must be rerouted: the finest-level curves would otherwise pierce the enlarged landmark boxes. We rerun the corridor router, Section~\ref{sec:corridor}, on the active edges of $G_{z-1}$, but with two modifications that secure visual stability during zoom.
 
 \paragraph{Per-level CDT.} For level~$z-1$ we build a dedicated CDT from the inflated polylines of~$V_{z-1}$ only, using each node's level-$z{-}1$ scale. The global landmark~$v_0$ thus enters the triangulation as an obstacle that is $2^{Z-z+1}\!\times$ its finest-level size in each dimension, so routes naturally bend around it.
 
@@ -358,19 +359,19 @@ We describe an edge routing method that routes edges directly on the dual graph 
 
 \subsection{CDT Construction and the Dual Graph}
 
-Given the graph layout, each node is covered by a padded obstacle polygon. We compute a Constrained Delaunay Triangulation \cdt{} on the set \obst{} of these obstacle polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual graph} $D$ of \cdt{} has one node per triangle and one edge for each pair of triangles sharing a side. A triangle is \emph{free-space} if it is not contained in any obstacle interior. Each triangle of an A* (or Dijkstra) path is entered through one shared edge and left through another; the cost of the step taken inside the triangle is the Euclidean distance between the midpoints of those two edges. For the source triangle, which has no entering edge, the centroid is used as the entry point.
+Given the graph layout, each node is covered by a padded obstacle polygon. We compute a Constrained Delaunay Triangulation \cdt{} on the set \obst{} of these obstacle polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual graph} $D$ of \cdt{} has one node per triangle and one edge for each pair of triangles sharing a side. A triangle is \emph{free-space} if it is not contained in any obstacle interior. Each triangle of an A* or Dijkstra path is entered through one shared edge and left through another; the cost of the step taken inside the triangle is the Euclidean distance between the midpoints of those two edges. For the source triangle, which has no entering edge, the centroid is used as the entry point.
 
 \subsection{A* Search on the Dual Graph}
 \label{sec:astar}
 
 Intuitively, the CDT partitions free space into triangular ``rooms'' connected by shared edges acting as ``doorways''. Routing an edge from~$s$ to~$t$ then splits into two subproblems: a \emph{combinatorial} one---which sequence of rooms to traverse---and a \emph{geometric} one---which exact polyline through that sequence is shortest. We solve the first with a best-first search on the dual graph, and the second with the classical funnel algorithm. The dual-graph search ignores fine geometry and only commits to a corridor; the funnel then pulls the path taut inside that fixed corridor, sliding it against diagonal endpoints until it is locally straight. Because A* on the dual uses centroid-to-centroid step costs and a straight-line heuristic to the target, it is consistent and returns a corridor whose total cost lower-bounds, but closely tracks, the true shortest path---good enough to feed the funnel without chasing exact geometry inside the search.
  
-Concretely, for each graph edge from source~$s$ to target~$t$, we locate the containing triangles and run A*~\cite{hart1968formal} on the dual graph~$D$. The heuristic is the straight-line distance from the current centroid to~$t$. Triangles inside obstacles (other than the source and target obstacles) are excluded from the search. The resulting corridor is passed to the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which computes the shortest path through the corridor's sequence of diagonals.
+Concretely, for each graph edge from source~$s$ to target~$t$, we locate the containing triangles and run A*~\cite{hart1968formal} on the dual graph~$D$. The heuristic is the straight-line distance from the current centroid to~$t$. Triangles inside obstacles, other than the source and target obstacles, are excluded from the search. The resulting corridor is passed to the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which computes the shortest path through the corridor's sequence of diagonals.
 
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
-The corridor passes through triangles whose vertices lie on the padded obstacle boundaries. When these vertices appear as diagonal endpoints, the funnel algorithm produces sharp zigzag turns near each endpoint. We eliminate these artifacts by \emph{collapsing} obstacle vertices: any diagonal endpoint belonging to the source obstacle is replaced with the source center~$s$, and similarly for the target. Degenerate diagonals (both endpoints collapsed to the same point) are removed. The left/right orientation of each diagonal is preserved from the uncollapsed geometry.
+The corridor passes through triangles whose vertices lie on the padded obstacle boundaries. When these vertices appear as diagonal endpoints, the funnel algorithm produces sharp zigzag turns near each endpoint. We eliminate these artifacts by \emph{collapsing} obstacle vertices: any diagonal endpoint belonging to the source obstacle is replaced with the source center~$s$, and similarly for the target. Degenerate diagonals, those whose endpoints both collapse to the same point, are removed. The left/right orientation of each diagonal is preserved from the uncollapsed geometry.
 
 After collapse, the funnel sees a wide opening at each endpoint and naturally selects the optimal exit direction. A final arrowhead-trimming step clips the path at the node boundary curves.
 
@@ -384,7 +385,7 @@ After collapse, the funnel sees a wide opening at each endpoint and naturally se
 \subsection{Batched Routing with Dijkstra Trees}
 \label{sec:dijkstra}
 
-When a node has many incident edges, running independent A* searches is wasteful. We group edges by source node and run a single Dijkstra computation per source on the dual graph, expanding until all target triangles are reached. Corridors are recovered by following parent pointers. This reduces the number of searches from $m$ (edges) to at most $n$ (nodes). On the Game of Thrones social network (407 nodes, 2\,639 edges, 331 distinct sources), the Dijkstra tree approach reduces routing time by 30\%.
+When a node has many incident edges, running independent A* searches is wasteful. We group edges by source node and run a single Dijkstra computation per source on the dual graph, expanding until all target triangles are reached. Corridors are recovered by following parent pointers. This reduces the number of searches from $m$, the number of edges, to at most $n$, the number of nodes. On the Game of Thrones social network (407 nodes, 2\,639 edges, 331 distinct sources), the Dijkstra tree approach reduces routing time by 30\%.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{The Portal Graph}
@@ -427,7 +428,7 @@ The free-space segment (2) is the bottleneck: it requires a shortest-path query 
 \section{WebGL Rendering}
 \label{sec:webgl}
 
-The WebGL renderer uses deck.gl~\cite{deckgl}, a GPU-accelerated framework for large-scale data visualization. The renderer sets up an \texttt{OrthographicView} (no perspective distortion) and a \texttt{TileLayer} that dynamically loads tile data based on the current viewport.
+The WebGL renderer uses deck.gl~\cite{deckgl}, a GPU-accelerated framework for large-scale data visualization. The renderer sets up an \texttt{OrthographicView}, with no perspective distortion, and a \texttt{TileLayer} that dynamically loads tile data based on the current viewport.
 
 \paragraph{Tile resolution mapping.}
 The root tile size is rounded up to the nearest power of two. A \emph{start zoom} level is computed so that the root tile maps to the standard 512-pixel tile size of deck.gl. The \texttt{TileLayer}'s \texttt{getTileData} callback translates deck.gl tile coordinates $(x, y, z)$ to \msagljs{} tile map coordinates, fetching the precomputed tile data.
@@ -454,7 +455,7 @@ The renderer supports pan, zoom, hover highlighting, and click selection. Hoveri
 
 We evaluate the corridor routing method on benchmark graphs from the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest~\cite{composers}, the Graphviz test suite~\cite{b103,b100}, and the Gnutella P2P network~\cite{gnutella}. All experiments run in Node.js on a laptop with an Apple M1 processor. Layout uses Pivot MDS; timings include CDT construction, routing, and curve smoothing.
 
-Table~\ref{tab:perf} reports the performance of the Dijkstra-tree corridor router (Section~\ref{sec:dijkstra}). For each graph, we report the number of CDT triangles, free-space triangles, the total number of portal triangles across all nodes, and the total routing time.
+Table~\ref{tab:perf} reports the performance of the Dijkstra-tree corridor router, Section~\ref{sec:dijkstra}. For each graph, we report the number of CDT triangles, free-space triangles, the total number of portal triangles across all nodes, and the total routing time.
 
 \begin{table}[t]
   \centering
