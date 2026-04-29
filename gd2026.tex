@@ -6,6 +6,7 @@
 \usepackage{svg}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
+\usepackage{booktabs}
 
 \graphicspath{{./images/}}
 
@@ -74,10 +75,10 @@ WebGL via the deck.gl framework. In this paper we concentrate on two
 features of the latter renderer.
 
 First, a \emph{tiling scheme} that turns a large graph into a
-navigable map: at every zoom level the labels of the highest-ranked
-nodes remain readable, just as the names of major geographical
-features stay readable on digital maps---making the browsing
-experience familiar to anyone used to online maps. Second, a
+navigable map with \emph{semantic zoom}: at every zoom level the
+labels of the highest-ranked nodes remain readable, just as the names
+of major geographical features stay readable on digital maps---making
+the browsing experience familiar to anyone used to online maps. Second, a
 \emph{corridor routing} method that routes each edge along the
 shortest path in homotopy class around the node obstacles, based on
 the Constrained Delaunay Triangulation. The whole pipeline runs
@@ -197,36 +198,151 @@ The WebGL renderer (Section~\ref{sec:webgl}) consumes the tile hierarchy and ren
 \section{Tiling}
 \label{sec:tiling}
 
-To visualize large graphs interactively, \msagljs{} builds a pyramid of tiles analogous to those used in online maps. Levels are numbered $0,1,\dots,Z$ from coarsest to finest; the finest level~$Z$ shows the full graph produced by the layout and the corridor router presented in Section~\ref{sec:corridor}. At any zoom only the few tiles of the current level that intersect the viewport are fetched and drawn, so rendering cost is proportional to the number of entities in those visible tiles, not to the size of the graph. The construction proceeds in three phases.
+To visualize large graphs interactively, \msagljs{} builds a pyramid
+of tiles analogous to those used in online maps, served to the browser
+through the \texttt{TileLayer} of the \texttt{@deck.gl/geo-layers}
+package~\cite{deckglTileLayer}. Levels are numbered $0,1,\dots,Z$ from
+coarsest to finest; level~$0$ is a single tile covering the whole
+drawing with only a few top-ranking graph features,
+and the finest level~$Z$ corresponds to the full graph
+produced by the layout and the corridor router of
+Section~\ref{sec:corridor}.
 
-\subsection{Tile Hierarchy Construction}
-\label{sec:tile-build}
+Conceptually, each tile is associated with a rectangular viewport and
+holds the graph elements that lie within it: the single tile at
+level~$0$ is associated with a viewport covering the entire drawing,
+so it contains the whole graph. When rendering, every level shows only
+a prefix of the graph elements ranked by importance, and each tile
+renders the part of that prefix that lies within its viewport; the
+remaining elements are hidden. The per-tile capacity~$\mathcal{C}$
+only governs the choice of $Z$ (when to stop subdividing) and is not
+consulted when deciding what to render at each level: the selection of
+visible elements per level is driven entirely by importance and
+geometric non-overlap (Section~\ref{sec:filter}). Only the finest
+level~$Z$ displays every node and edge of the graph.
 
-A tile is a pair $(\mathit{rect}, \mathit{tiledata})$, where $\mathit{tiledata}$ is a set of \emph{tile elements}: nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge clip is a pair $(e, p)$, with $p$ a continuous piece of the edge curve $c_e$ confined to $\mathit{rect}$.
+\emph{Per-tile rendering load.} At the finest level, condition~(i) is
+intended to cap each tile at $\mathcal{C}$ visible elements (nodes
+plus edge clips, default $\mathcal{C}=500$). On dense graphs, however,
+either the depth cap $Z_{\max}=8$ or the minimum tile size~(ii) binds
+first, in which case the densest finest-level tile may hold many more
+than $\mathcal{C}$ elements. For a coarser level~$z<Z$ we ignore
+$\mathcal{C}$ when preparing a tile for rendering. We apply semantic
+zoom on the nodes, (Section~\ref{sec:filter}) by inflating each
+surviving node by roughly $2^{Z-z}$ in linear size. The chosen nodes
+define the rendered edges: we render the edges connecting two chosen
+nodes. Table~\ref{tab:max-per-tile} reports the
+empirical worst-case per-tile element count on a range of graphs.
 
-The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines, producing sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$. Subdivision of a level stops as soon as either of the following holds:
-(i)~every tile at that level already contains at most \capac{} elements;
-or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively.
-The first condition uses a default \capac{}~$=500$, so a tile that is
-already light enough is not splitg. The second condition prevents producing tiles smaller than the nodes they display.
+\paragraph{How $Z$ is chosen.} $Z$ is determined incrementally rather
+than fixed in advance. We initialize $Z=0$ with the single root tile
+covering the whole drawing. While the tiles at level~$Z$ violate
+conditions~(i)~or~(ii) below, we increase $Z$ by one and split every
+tile of the previous finest level into four equal sub-tiles. The two
+conditions are: (i)~every tile contains at most~$\mathcal{C}$ visible
+elements (default $\mathcal{C}=500$), preventing overloaded tiles; and
+(ii)~the tile width and height are both below ten times the average
+node width and height, preventing tiles smaller than the nodes they
+display. We additionally enforce a hard cap $Z \le Z_{\max}$ derived from a
+memory estimate. At level~$z$ the pyramid has a $2^{z}\times 2^{z}$
+grid of tiles, so the finest grid resolution is $K = 2^{Z}$. Across
+the whole pyramid we estimate the total number of stored tile elements
+as
+\[
+T(K) \;\approx\; 2\,\bigl((K/4)\,M + N\bigr),
+\]
+where $N$ and $M$ are the node and edge counts of $G$. The term
+$(K/4)\,M$ counts per-tile edge clips at the finest level, under the
+heuristic that an average edge crosses $K/4$ tiles. The additive $N$
+counts node copies. The factor~$2$ accounts for the contribution of
+all coarser levels combined. With roughly $200$~bytes per stored
+element and a maximum memory $\mathcal{M}_{\max}$ (default $4$~GB), we
+solve $200\,T(K) \le \mathcal{M}_{\max}$ for the largest admissible
+$K$,
+\[
+K_{\max} \;=\; \Bigl\lfloor\,4\bigl(\mathcal{M}_{\max}/(2\cdot 200) - N\bigr)\big/M\,\Bigr\rfloor,
+\]
+and set
+\[
+Z_{\max} \;=\; \min\!\bigl(8,\;\bigl\lfloor\log_2 K_{\max}\bigr\rfloor\bigr).
+\]
+The constant $8$ is a safety ceiling: even when $\mathcal{M}_{\max}$
+allows a much larger grid, we never build more than nine pyramid
+levels.
+\paragraph{Three phases.} Once $Z$ and the tile rectangles are fixed,
+construction proceeds in three phases for every coarser level
+$z=Z{-}1, Z{-}2, \dots, 0$: (1)~use PageRank to pick the nodes shown
+at level~$z$ and possibly enlarge them
+(Section~\ref{sec:filter}); (2)~reroute the edges of $G_z$ around
+these obstacles, which may now be enlarged,
+(Section~\ref{sec:level-reroute}); (3)~recompute the per-tile edge
+clips at level~$z$ by splitting the new curves at tile boundaries
+(Section~\ref{sec:tile-build}). Figure~\ref{fig:tile-pyramid} on the
+first page shows two adjacent pyramid levels built by this procedure.
+Algorithm~\ref{alg:build-pyramid} summarizes the whole pipeline.
 
-\subsection{Per-Level Graph and PageRank-Guided Filtering}
+\begin{algorithm}[t]
+\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathit{minTileSize})$}
+\label{alg:build-pyramid}
+\begin{algorithmic}[1]
+\State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
+\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$
+\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements \textbf{and} its width/height $\ge \mathit{minTileSize}$}
+  \State $\mathit{levels}[z{+}1] \gets$ split every tile of $\mathit{levels}[z]$ into four sub-tiles
+  \State within each parent, distribute nodes/labels/arrowheads by bbox, and split each edge clip at the tile midlines (Section~\ref{sec:tile-build})
+  \State $z \gets z + 1$
+\EndWhile
+\State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
+\State compute $\mathrm{PageRank}(G)$
+\For{$z = Z-1$ \textbf{down to} $0$}
+  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
+  \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
+  \State reroute every edge $e\in E_z$ on this CDT, using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
+  \State for every tile $t$ at level $z$, recompute the clips of $e$ inside $t$ from the new curve, splitting at tile midlines
+\EndFor
+\State \Return $\mathit{levels}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{PageRank-Guided Level Construction}
 \label{sec:filter}
 
-To keep coarser levels readable, each level~$z<Z$ is assigned its own \emph{level graph}~$G_z$: a subset $V_z\subseteq V$ of active nodes together with every edge of~$G$ whose endpoints both lie in~$V_z$. We first compute PageRank~\cite{page1999pagerank} on~$G$ once and sort nodes in decreasing rank.
+To keep labels readable at coarse zooms, each level~$0 \le z < Z$ is assigned its own \emph{level graph}~$G_z=(V_z,E_z)$: a subset $V_z\subseteq V_{z+1}$ of active nodes together with every edge of~$G$ whose endpoints both lie in~$V_z$. We compute PageRank~\cite{page1999pagerank} on~$G$ once, sort all nodes by descending PageRank as $v_0,v_1,\dots,v_{|V|-1}$, and build the levels top-down starting from $V_Z=V$. Write $S_z = 2^{\,Z-z}$ for the per-level scale ceiling.
 
-Starting from $V_Z=V$, we build $V_{z-1}$ greedily. Let $r(v)$ be the rank of~$v$ in $V_z$, so that rank~$1$ denotes the highest PageRank in~$V_z$. The top-ranked node $v^\star$ is always accepted and \emph{enlarged by a factor of two in each dimension}; lower-ranked nodes inherit a scale that is monotonically non-increasing in rank. We walk the top half of $V_z$ in rank order and, for each candidate~$v$, pick the largest scale $s_v \in [s_{\min},\,2]$, decreasing geometrically, whose inflated bounding box, padded by a margin $m=3p+p_{\mathrm{extra}}$ matching the obstacle inflation used by the router, does not intersect any previously accepted box. Scales below~$1$ are allowed, down to $s_{\min}=0.25$, so that crowded lower-ranked nodes can still be shown at a reduced size rather than being dropped; a candidate whose box overlaps even at $s_{\min}$ is skipped. The accepted nodes form~$V_{z-1}$ and the chosen scales are stored per level. This produces the intended map-like effect: a small number of big, highly ranked landmarks at the coarsest zoom, and progressively more detail as the user zooms in, with no lower-ranked node ever drawn larger than a higher-ranked one.
+\paragraph{Building $V_z$.}
+The intuition is a greedy seniority sweep: highly ranked nodes get to ``claim'' as much screen room as the level allows, and lower-ranked ones squeeze into whatever space is left. Concretely, the candidate set at level~$z$ is the rank-prefix
+\[
+T_z \;=\; \{\,v_0,v_1,\dots,v_{n_z-1}\,\},\qquad n_z=\bigl\lceil |V|/2^{\,Z-z}\bigr\rceil,
+\]
+i.e.\ a fixed-size prefix of the \emph{globally} rank-sorted node list, halving in size with each coarser level. Working from a global prefix rather than from the previously built~$V_{z+1}$ matters: a high-rank node that was rejected once because of a near-by even-higher-rank neighbor at a finer level would otherwise be permanently lost, even at coarser levels where its enlarged box would actually fit. We process $T_z$ in rank-descending order. Each candidate~$v$ is assigned the largest scale~$s_v\le S_z$ at which its bounding box, scaled about $v$'s center and inflated by a margin~$m$ that absorbs the router's obstacle padding and the CDT inflation, stays disjoint from the inflated boxes of every already-accepted node. Disjointness is a closed-form, axis-aligned separating-axis test, so $s^\star(v)$ is obtained directly from box centers and dimensions; if $s^\star(v)\ge 1$ the candidate is accepted at $s_v=\min(\sigma, s^\star(v))$, where the running cap~$\sigma$ (initially $S_z$) is then tightened to~$s_v$ to forbid any later, lower-ranked node from being drawn larger than its accepted seniors. Because $v_0$ is processed first against an empty accepted set, it always survives at the full scale~$S_z$. The accepted set becomes~$V_z$ and the per-node scales~$\{s_v^{(z)}\}$ are stored for the level. Because $T_z\subseteq T_{z+1}$ and at coarser levels boxes are only larger (so an already-tight overlap configuration cannot become looser), acceptance is monotone in~$z$: $V_z\subseteq V_{z+1}$, as required by the level-graph definition. The result is the intended map-like effect: a few large landmarks at coarse zooms, progressively more detail as the user zooms in, and a guaranteed visible gap of at least~$2m$ between every pair of un-inflated scaled boxes.
+
+To avoid testing every candidate against every previously accepted box, accepted boxes are maintained in a uniform spatial hash whose cell size is an upper bound on the inflated box dimension at the current level. Two boxes can overlap only if their center cells are within one step on each axis, so each candidate consults at most nine cells. On the layouts we tested the expected work per candidate is~$O(1)$, giving an overall expected cost of $O(|T_z|\log|T_z|)$ dominated by the initial sort; the worst case, when many boxes pile into a single cell, degrades to $O(|T_z|\cdot|V_z|)$.
 
 \subsection{Stable Per-Level Rerouting with a Routing Hint}
 \label{sec:level-reroute}
 
-Because $G_{z-1}$ has fewer obstacles than $G_z$, and different ones on account of the enlargement of~$v^\star$, edges of~$G_{z-1}$ must be rerouted: the finest-level curves would otherwise pierce the enlarged landmark boxes. We rerun the corridor router (Section~\ref{sec:corridor}) on $G_z \!\setminus\! G_{z-1}$'s active edges, but with two modifications that secure visual stability during zoom.
+Because $G_{z-1}$ has fewer obstacles than $G_z$, and different ones on account of the enlargement of~$v_0$, edges of~$G_{z-1}$ must be rerouted: the finest-level curves would otherwise pierce the enlarged landmark boxes. We rerun the corridor router (Section~\ref{sec:corridor}) on the active edges of $G_{z-1}$, but with two modifications that secure visual stability during zoom.
 
-\paragraph{Per-level CDT.} For level~$z-1$ we build a dedicated CDT from the inflated polylines of~$V_{z-1}$ only, using each node's level-$z{-}1$ scale. The highest-ranked landmark thus enters the triangulation as an obstacle that is twice its finest-level size in each dimension, so routes naturally bend around it.
+\paragraph{Per-level CDT.} For level~$z-1$ we build a dedicated CDT from the inflated polylines of~$V_{z-1}$ only, using each node's level-$z{-}1$ scale. The global landmark~$v_0$ thus enters the triangulation as an obstacle that is $2^{Z-z+1}\!\times$ its finest-level size in each dimension, so routes naturally bend around it.
 
-\paragraph{Routing hint.} For every edge~$e\in E_{z-1}$ we already have a route~$c_e$ computed at the finer level~$z$. We sample~$c_e$, locate the CDT triangles it visits at level~$z-1$, and expand this sequence by one neighbor hop to obtain a triangle \emph{sleeve}~$S_e$. Instead of the per-source Dijkstra trees described in Section~\ref{sec:dijkstra}, which are efficient when many edges share a source but ignore the previous level's shape, we run a per-edge \textbf{A*} on the dual of the level-$z{-}1$ CDT, \emph{restricted to}~$S_e$, with the source and target obstacle triangles always admissible. The hint keeps the coarse-level route topologically and geometrically close to the fine-level one, so that as the user zooms out an edge deforms smoothly rather than jumping to a different side of a landmark. If the masked A* fails, for instance when the target now lies inside the inflated landmark, we fall back to unconstrained A* on the whole dual, and finally to A* with the obstacle-interior guard disabled; all three tiers share the same pre-allocated open-set arrays.
+\paragraph{Routing hint.} For every edge~$e\in E_{z-1}$ we already have a route~$c_e$ computed at the finer level~$z$. We sample~$c_e$, locate the CDT triangles it visits at level~$z-1$, and expand this sequence by one neighbor hop to obtain a triangle \emph{sleeve}~$S_e$. Instead of the per-source Dijkstra trees of Section~\ref{sec:dijkstra}, which are efficient when many edges share a source but ignore the previous level's shape, we run a per-edge \textbf{A*} on the dual of the level-$z{-}1$ CDT, \emph{restricted to}~$S_e$, with the source and target obstacle triangles always admissible. The hint keeps the coarse-level route topologically and geometrically close to the fine-level one, so that as the user zooms out an edge deforms smoothly rather than jumping to a different side of a landmark. If the masked A* fails, for instance when the target now lies inside the inflated landmark, we fall back to unconstrained A* on the whole dual, and finally to A* with the obstacle-interior guard disabled; all three tiers share the same pre-allocated open-set arrays.
 
-To summarize the division of labor: \textbf{Dijkstra trees}, Section~\ref{sec:dijkstra}, drive the \emph{finest-level} routing, where there is no hint and many edges share sources; \textbf{A*} drives the \emph{per-level rerouting} for $z<Z$, where each edge carries its own sleeve hint from the finer level and independent searches are required. Figure~\ref{fig:tile-pyramid} on the first page shows two adjacent pyramid levels built by this procedure. Once $E_{z-1}$ has been rerouted, the clip invariant~$\mathcal{F}$ is reestablished by recomputing the clips of the affected edges inside every level-$(z{-}1)$ tile.
+To summarize the division of labor: \textbf{Dijkstra trees}, Section~\ref{sec:dijkstra}, drive the \emph{finest-level} routing, where there is no hint and many edges share sources; \textbf{A*} drives the \emph{per-level rerouting} for $z<Z$, where each edge carries its own sleeve hint from the finer level and independent searches are required.
+
+\subsection{Splitting Edges between Tiles}
+\label{sec:tile-build}
+
+Once each level $G_z$ has its final geometry, we cut that level into tiles. A tile is a pair $(\mathit{rect}, \mathit{tiledata})$, where $\mathit{tiledata}$ is a set of \emph{tile elements}: nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge clip is a pair $(e, p)$, with $p$ a continuous piece of the edge curve $c_e$ confined to $\mathit{rect}$.
+
+The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines, producing sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$.
+Invariant~$\mathcal{F}$ serves two purposes. Part~(a) makes subdivision cheap and local. Suppose a parent tile has rectangle $\mathit{rect}$ with horizontal and vertical midlines $\ell_h, \ell_v$. To split a clip $(e,p)$ into its children, we collect all intersections of the underlying curve $c_e$ with $\ell_h$ and $\ell_v$, restrict them to the parameter range $[\mathit{start},\mathit{end}]$ defining $p$, sort these parameters, and prepend $\mathit{start}$ and append $\mathit{end}$. This yields a sorted parameter list $\mathit{start}=t_0<t_1<\dots<t_m=\mathit{end}$, and the $m$ child sub-clips are exactly the curve pieces over consecutive intervals $[t_{u},t_{u+1}]$. Each piece is assigned to one of the four children by sampling $c_e$ at the midpoint $(t_u+t_{u+1})/2$ and comparing against the midlines. Crucially, no intersection with the four outer sides of $\mathit{rect}$ is ever computed: invariant~(a) guarantees that the curve already lies inside $\mathit{rect}$ between $t_0$ and $t_m$ and crosses its boundary only at those endpoints, so the midlines alone fully decompose the clip into rectangle-confined pieces. This reduces subdivision to one curve--line intersection per midline plus a sort, instead of a full 2D rectangle clip.
+Part~(b) is the rendering-correctness condition: at any zoom only the tiles intersecting the viewport are fetched and their clips drawn, and (b) guarantees that the union of what is drawn equals $c_e\cap\text{viewport}$ for every visible edge~$e$, so no segment is missed and none is drawn twice. The same invariant is also what makes the rerouting of Section~\ref{sec:level-reroute} compatible with tiling: whenever an edge curve~$c_e$ is replaced by a coarser-level route, (b) is reestablished by recomputing the clips of that edge inside every affected tile before the level is served.
+
+Subdivision of a level stops as soon as either of the following holds: (i)~every tile at that level already contains at most \capac{} elements; or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively. These are the same conditions that determine $Z$ (Algorithm~\ref{alg:build-pyramid}).
+
+Table~\ref{tab:max-per-tile} reports the resulting maximum number of elements rendered in a single tile across the entire pyramid for a range of graphs.
+
+\input{tile_max_per_tile_table.tex}
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Corridor Routing on the CDT}
@@ -241,7 +357,9 @@ Given the graph layout, each node is covered by a padded obstacle polygon. We co
 \subsection{A* Search on the Dual Graph}
 \label{sec:astar}
 
-For each graph edge from source~$s$ to target~$t$, we locate the containing triangles and run A*~\cite{hart1968formal} on the dual graph~$D$. The heuristic is the straight-line distance from the current centroid to~$t$. Triangles inside obstacles (other than the source and target obstacles) are excluded from the search. The resulting corridor is passed to the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which computes the shortest path through the corridor's sequence of diagonals.
+Intuitively, the CDT partitions free space into triangular ``rooms'' connected by shared edges acting as ``doorways''. Routing an edge from~$s$ to~$t$ then splits into two subproblems: a \emph{combinatorial} one---which sequence of rooms to traverse---and a \emph{geometric} one---which exact polyline through that sequence is shortest. We solve the first with a best-first search on the dual graph, and the second with the classical funnel algorithm. The dual-graph search ignores fine geometry and only commits to a corridor; the funnel then pulls the path taut inside that fixed corridor, sliding it against diagonal endpoints until it is locally straight. Because A* on the dual uses centroid-to-centroid step costs and a straight-line heuristic to the target, it is consistent and returns a corridor whose total cost lower-bounds, but closely tracks, the true shortest path---good enough to feed the funnel without chasing exact geometry inside the search.
+ 
+Concretely, for each graph edge from source~$s$ to target~$t$, we locate the containing triangles and run A*~\cite{hart1968formal} on the dual graph~$D$. The heuristic is the straight-line distance from the current centroid to~$t$. Triangles inside obstacles (other than the source and target obstacles) are excluded from the search. The resulting corridor is passed to the funnel algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which computes the shortest path through the corridor's sequence of diagonals.
 
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
