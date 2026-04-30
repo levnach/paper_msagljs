@@ -460,20 +460,24 @@ The sleeve passes through triangles whose vertices lie on padded
 obstacle boundaries. Near the source and target, where the funnel is
 anchored to a single point, vertices of the source or target obstacle
 that appear on the funnel's left and right chains can wrap a chain
-around the obstacle and force the path to detour around its corners.
-We eliminate these detours by \emph{collapsing} such vertices
-selectively to the corresponding node center. Walking the right chain
-of the sleeve outward from~$s$, we find the first vertex of the source
-obstacle at which the chain turns right toward~$s$, and replace every
-source-owned vertex on that chain up to and including this one by~$s$.
-The left chain is processed mirror-symmetrically (with left turns
-instead of right), and the target end likewise. Diagonals whose two
-endpoints coincide after collapse are dropped, and the left/right
-orientation of each surviving diagonal is preserved from the
-uncollapsed geometry. In Figure~\ref{fig:collapse}(a) the two
-collapsed vertices, one on each chain, are marked in yellow.
+around the obstacle and force the path to detour around its corners;
+see Figure~\ref{fig:collapse}(a). We eliminate these detours by
+\emph{collapsing} such vertices selectively to the corresponding node
+center. Walking the right chain of the sleeve outward from~$s$, we
+find the first vertex of the source obstacle at which the chain turns
+right toward~$s$, and replace every source-owned vertex on that chain
+up to and including this one by~$s$. The left chain is processed
+mirror-symmetrically (with left turns instead of right), and the
+target end likewise. Diagonals whose two endpoints coincide after
+collapse are dropped, and the left/right orientation of each surviving
+diagonal is preserved from the uncollapsed geometry. The two collapsed
+vertices in Figure~\ref{fig:collapse}(a), one on each chain, are
+marked in yellow.
 
-After collapse, the funnel sees a wide opening at each endpoint and naturally selects the optimal exit direction. A final arrowhead-trimming step clips the path at the node boundary curves.
+After collapse, the funnel sees a wide opening at each endpoint, as in
+Figure~\ref{fig:collapse}(b), and naturally selects the optimal exit
+direction. A final arrowhead-trimming step clips the path at the node
+boundary curves.
 
 The implementation also offers an optional pass that fits a Bezier segment into each polyline corner to render edges as smooth curves. It is disabled by default for performance: the polyline rendering is fast and visually acceptable, so we trade the smoother curves for routing speed.
 
