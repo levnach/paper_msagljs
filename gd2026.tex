@@ -456,14 +456,19 @@ Before launching the sleeve search for an edge $(s,t)$ we attempt an even cheape
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
-The sleeve passes through triangles whose vertices lie on the padded
-obstacle boundaries. When these vertices appear as diagonal endpoints,
-the funnel algorithm might produce sharp turns near each endpoint. We
-eliminate these artifacts by \emph{collapsing} obstacle vertices: any
-diagonal endpoint belonging to the source obstacle is replaced with
-the source center~$s$, and similarly for the target. Degenerate
-diagonals, those whose endpoints both collapse to the same point, are
-removed. The left/right orientation of each diagonal is preserved from
+The sleeve passes through triangles whose vertices lie on padded
+obstacle boundaries. Near the source and target, where the funnel is
+anchored to a single point, vertices of the source or target obstacle
+that appear on the funnel's left and right chains can wrap a chain
+around the obstacle and force the path to detour around its corners.
+We eliminate these detours by \emph{collapsing} such vertices
+selectively to the corresponding node center. Walking each chain
+outward from~$s$, we locate the last source-owned vertex at which the
+chain bends around~$s$ rather than moving away from it, and replace
+every source-owned vertex on that chain up to and including that one
+by~$s$; the target end is processed mirror-symmetrically. Diagonals
+whose two endpoints coincide after collapse are dropped, and the
+left/right orientation of each surviving diagonal is preserved from
 the uncollapsed geometry.
 
 After collapse, the funnel sees a wide opening at each endpoint and naturally selects the optimal exit direction. A final arrowhead-trimming step clips the path at the node boundary curves.
