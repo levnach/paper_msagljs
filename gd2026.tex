@@ -79,7 +79,7 @@ navigable map with \emph{semantic zoom}: at every zoom level the
 labels of the highest-ranked nodes remain readable, just as the names
 of major geographical features stay readable on digital maps---making
 the browsing experience familiar to anyone used to online maps. Second, a
-\emph{corridor routing} method that routes each edge along the
+\emph{sleeve routing} method that routes each edge along the
 shortest path in homotopy class around the node obstacles, based on
 the Constrained Delaunay Triangulation. The whole pipeline runs
 client-side, without a dedicated server, on a phone or a laptop. In
@@ -119,7 +119,7 @@ and a tiling scheme for level-of-detail rendering.
 This paper makes two main contributions:
 \begin{enumerate}
 \item A \emph{tiling scheme} for large graph visualization that builds a hierarchical tile pyramid, limits visible entities per tile using PageRank-based filtering, simplifies edge routes at coarser levels, and integrates with the WebGL renderer for real-time pan and zoom.
-\item A \emph{corridor routing} algorithm that routes edges on the dual graph of a Constrained Delaunay Triangulation, using per-source batched Dijkstra trees followed by the classical funnel algorithm to produce shortest-path geodesics in homotopy classes.
+\item A \emph{sleeve routing} algorithm that routes edges on the dual graph of a Constrained Delaunay Triangulation, using per-source batched Dijkstra trees followed by the classical funnel algorithm to produce shortest-path geodesics in homotopy classes.
 \end{enumerate}
 
 %% ═══════════════════════════════════════════════════════════════════
@@ -158,7 +158,7 @@ clutter-reduction techniques applied \emph{after} edges have been
 routed.
 
 \paragraph{Shortest paths and edge routing.}
-Our corridor algorithm walks the dual of a Constrained Delaunay
+Our sleeve algorithm walks the dual of a Constrained Delaunay
 Triangulation~\cite{shewchuk2002delaunay} and relies on the classical
 funnel algorithm for extracting a geodesic from a triangle
 strip~\cite{lee1984euclidean,chazelle1982theorem,guibas1987linear,pathOpt}.
@@ -168,7 +168,7 @@ $O(m\log^{2/3} n)$ single-source shortest-path algorithm that breaks
 the sorting barrier~\cite{duan2025sorting} are remarkable theoretical
 results, but they are not practical: both build elaborate global data
 structures that we avoid.
-Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}. Our corridor method eliminates the spanner entirely and routes directly on the CDT dual graph, and is, to our knowledge, the first routing algorithm integrated with a browser-side tile pyramid that reroutes edges per level.
+Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}. Our sleeve method eliminates the spanner entirely and routes directly on the CDT dual graph, and is, to our knowledge, the first routing algorithm integrated with a browser-side tile pyramid that reroutes edges per level.
 
 
 %% ═══════════════════════════════════════════════════════════════════
@@ -188,7 +188,7 @@ Graphviz builds the full visibility graph for edge routing in force-directed lay
 The layout pipeline proceeds in three phases:
 \begin{enumerate}
 \item \textbf{Layout.} Node positions are computed by the chosen algorithm. For large undirected graphs the default is force-directed layout, IPsepCola, initialized with Pivot MDS~\cite{brandes2007eigensolver}; for directed graphs, Sugiyama layout is used.
-\item \textbf{Edge routing.} Edges are routed around node obstacles. The routing mode is configurable; this paper focuses on \emph{corridor routing}, Section~\ref{sec:corridor}.
+\item \textbf{Edge routing.} Edges are routed around node obstacles. The routing mode is configurable; this paper focuses on \emph{sleeve routing}, Section~\ref{sec:sleeve-routing}.
 \item \textbf{Tiling.} A tile hierarchy is built for level-of-detail rendering, Section~\ref{sec:tiling}.
 \end{enumerate}
 
@@ -205,8 +205,8 @@ package~\cite{deckglTileLayer}. Levels are numbered $0,1,\dots,Z$ from
 coarsest to finest; level~$0$ is a single tile covering the whole
 drawing with only a few top-ranking graph features,
 and the finest level~$Z$ corresponds to the full graph
-produced by the layout and the corridor router of
-Section~\ref{sec:corridor}.
+produced by the layout and the sleeve router of
+Section~\ref{sec:sleeve-routing}.
 
 Conceptually, each tile is associated with a rectangular viewport and
 holds the graph elements that lie within it: the single tile at
@@ -329,7 +329,7 @@ each coarser level. We process $T_z$ in rank-descending order. Each
 candidate~$v$ is assigned the largest scale~$s_v\le S_z$ at which its
 padded bounding box, scaled about $v$'s center, stays disjoint from
 the padded boxes of all already-accepted nodes; the padding absorbs
-the corridor router's obstacle inflation and leaves a visible gap
+the sleeve router's obstacle inflation and leaves a visible gap
 after triangulation. Disjointness is an axis-aligned separating-axis
 test, so the largest admissible scale~$s^\star(v)$ is obtained in
 closed form. If $s^\star(v)\ge 1$ the candidate is accepted at
@@ -358,8 +358,8 @@ level we measured.
 \label{sec:level-reroute}
 
 At each level we change the graph and the node sizes, so the edges
-must be rerouted on each level as well. We rerun the corridor router,
-Section~\ref{sec:corridor}, on the set of the level edges.
+must be rerouted on each level as well. We rerun the sleeve router,
+Section~\ref{sec:sleeve-routing}, on the set of the level edges.
 
 \paragraph{Per-level CDT.} For level~$z-1$ we build a dedicated CDT
 from the inflated polylines of~$V_{z-1}$ only, using each node's
@@ -425,36 +425,36 @@ delaunay\_n15      & 32\,768 &  98\,274 & 9 &     611 & 8 \\
 \end{table}
 
 %% ═══════════════════════════════════════════════════════════════════
-\section{Corridor Routing on the CDT}
-\label{sec:corridor}
+\section{Sleeve Routing on the CDT}
+\label{sec:sleeve-routing}
 
-We describe an edge routing method that routes edges directly on the dual graph of a Constrained Delaunay Triangulation, without requiring a spanner graph. The method finds a \emph{corridor}---a sequence of adjacent CDT triangles from source to target---and applies the funnel algorithm to produce the shortest path within it.
+We describe an edge routing method that routes edges directly on the dual graph of a Constrained Delaunay Triangulation, without requiring a spanner graph. The method finds a \emph{sleeve}---a sequence of adjacent CDT triangles from source to target---and applies the funnel algorithm to produce the shortest path within it.
 
 \subsection{CDT Construction and the Dual Graph}
 
 Given the graph layout, each node is covered by a padded obstacle polygon. We compute a Constrained Delaunay Triangulation \cdt{} on the set \obst{} of these obstacle polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual graph} $D$ of \cdt{} has one node per triangle and one edge for each pair of triangles sharing a side. A triangle is \emph{free-space} if it is not contained in any obstacle interior.
 
-\subsection{Corridor Routing from a Sleeve}
+\subsection{Routing inside a Sleeve}
 \label{sec:sleeve}
 
-Intuitively, each triangle is a short stretch of corridor and shared
-edges act as ``doorways'' between consecutive stretches. Routing an
-edge from~$s$ to~$t$ splits into two subproblems: a
-\emph{combinatorial} one---which sequence of doorways to pass
-through---and a \emph{geometric} one---which exact polyline through
-that sequence is shortest. The geometric step is the classical funnel
+Intuitively, the sleeve is a chain of triangles meeting along shared
+edges, the \emph{diagonals}, that the path must cross in order.
+Routing an edge from~$s$ to~$t$ splits into two subproblems: a
+\emph{combinatorial} one---which sequence of diagonals to cross---and
+a \emph{geometric} one---which exact polyline through that sequence is
+shortest. The geometric step is the classical funnel
 algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which
-pulls the path taut inside of the polygon formed by the corridor
-triangles, the sleeve. The corridor router itself is therefore
-agnostic to how the sleeve is produced; any search on the dual graph
-that returns such a sequence will do.
+pulls the path taut inside the polygon formed by the sleeve
+triangles. The sleeve router itself is therefore agnostic to how the
+sleeve is produced; any search on the dual graph that returns such a
+sequence of triangles will do.
 
-To obtain the sleeve we run a shortest-path search on~$D$ where the step from one triangle to a neighbor costs the Euclidean distance between their centroids; triangles inside obstacles other than the source and target obstacles are excluded. The natural per-edge instantiation is A*~\cite{hart1968formal} with the straight-line distance to~$t$ as heuristic. When a node has many incident edges, however, running independent searches is wasteful. We instead group edges by source~$s$ and run a single Dijkstra computation per source, expanding until all targets are reached and recovering each sleeve by following parent pointers. This reduces the number of searches from~$m$ to at most~$n$, the number of nodes; on the Game of Thrones social network (407 nodes, 2\,639 edges, 331 distinct sources) it cuts routing time by~30\%. Either variant feeds the same corridor router downstream.
+To obtain the sleeve we run a shortest-path search on~$D$ where the step from one triangle to a neighbor costs the Euclidean distance between their centroids; triangles inside obstacles other than the source and target obstacles are excluded. The natural per-edge instantiation is A*~\cite{hart1968formal} with the straight-line distance to~$t$ as heuristic. When a node has many incident edges, however, running independent searches is wasteful. We instead group edges by source~$s$ and run a single Dijkstra computation per source, expanding until all targets are reached and recovering each sleeve by following parent pointers. This reduces the number of searches from~$m$ to at most~$n$, the number of nodes; on the Game of Thrones social network (407 nodes, 2\,639 edges, 331 distinct sources) it cuts routing time by~30\%.
 
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
-The corridor passes through triangles whose vertices lie on the padded
+The sleeve passes through triangles whose vertices lie on the padded
 obstacle boundaries. When these vertices appear as diagonal endpoints,
 the funnel algorithm might produce sharp turns near each endpoint. We
 eliminate these artifacts by \emph{collapsing} obstacle vertices: any
@@ -469,7 +469,7 @@ After collapse, the funnel sees a wide opening at each endpoint and naturally se
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.65\textwidth]{collapse_CERSEI_SANSA.pdf}
-  \caption{Effect of vertex collapse on the CERSEI--SANSA edge. Light blue: corridor triangles. Orange dashed: funnel path before collapse (3 waypoints). Red solid: funnel path after collapse (2 waypoints, 12\% shorter). Collapsing obstacle vertices to the node center widens the funnel opening and removes the detour.}
+  \caption{Effect of vertex collapse on the CERSEI--SANSA edge. Light blue: sleeve triangles. Orange dashed: funnel path before collapse (3 waypoints). Red solid: funnel path after collapse (2 waypoints, 12\% shorter). Collapsing obstacle vertices to the node center widens the funnel opening and removes the detour.}
   \label{fig:collapse}
 \end{figure}
 
@@ -505,7 +505,7 @@ The free-space segment (2) is the bottleneck: it requires a shortest-path query 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.75\textwidth]{portal_graph_melisandre_stannis.pdf}
-  \caption{The portal graph for the MELISANDRE--STANNIS edge on the Game of Thrones social network. Orange triangles are portals---free-space CDT triangles adjacent to the obstacle boundary. Blue dashed arrows show interior edges from node centers to portal centroids. Green-shaded triangles form the free-space corridor found by the batched Dijkstra search. The thick red polyline shows the shortest path $c_{\text{MEL}} \to p_i \to \cdots \to p_j \to c_{\text{STAN}}$. Nearby node obstacles are shown in gray.}
+  \caption{The portal graph for the MELISANDRE--STANNIS edge on the Game of Thrones social network. Orange triangles are portals---free-space CDT triangles adjacent to the obstacle boundary. Blue dashed arrows show interior edges from node centers to portal centroids. Green-shaded triangles form the free-space sleeve found by the batched Dijkstra search. The thick red polyline shows the shortest path $c_{\text{MEL}} \to p_i \to \cdots \to p_j \to c_{\text{STAN}}$. Nearby node obstacles are shown in gray.}
   \label{fig:portal-graph}
 \end{figure}
 
@@ -539,9 +539,9 @@ The renderer supports pan, zoom, hover highlighting, and click selection. Hoveri
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the corridor routing method on benchmark graphs from the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest~\cite{composers}, the Graphviz test suite~\cite{b103,b100}, and the Gnutella P2P network~\cite{gnutella}. All experiments run in Node.js on a laptop with an Apple M1 processor. Layout uses Pivot MDS; timings include CDT construction, routing, and curve smoothing.
+We evaluate the sleeve routing method on benchmark graphs from the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest~\cite{composers}, the Graphviz test suite~\cite{b103,b100}, and the Gnutella P2P network~\cite{gnutella}. All experiments run in Node.js on a laptop with an Apple M1 processor. Layout uses Pivot MDS; timings include CDT construction, routing, and curve smoothing.
 
-Table~\ref{tab:perf} reports the performance of the Dijkstra-tree corridor router, Section~\ref{sec:sleeve}. For each graph, we report the number of CDT triangles, free-space triangles, the total number of portal triangles across all nodes, and the total routing time.
+Table~\ref{tab:perf} reports the performance of the Dijkstra-tree sleeve router, Section~\ref{sec:sleeve}. For each graph, we report the number of CDT triangles, free-space triangles, the total number of portal triangles across all nodes, and the total routing time.
 
 \begin{table}[t]
   \centering
@@ -558,7 +558,7 @@ Table~\ref{tab:perf} reports the performance of the Dijkstra-tree corridor route
     Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 87\,010 & 65\,258 & 43\,504 & 93\,760 \\
     \hline
   \end{tabular}
-  \caption{Corridor routing benchmarks. Dijkstra: per-source Dijkstra trees on the CDT dual.}
+  \caption{Sleeve routing benchmarks. Dijkstra: per-source Dijkstra trees on the CDT dual.}
   \label{tab:perf}
 \end{table}
 
@@ -568,7 +568,7 @@ The Dijkstra-tree approach scales to graphs with tens of thousands of edges. Rou
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The corridor routing method routes edges directly on the CDT dual graph using a portal graph abstraction and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
+We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The sleeve routing method routes edges directly on the CDT dual graph using a portal graph abstraction and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
 
 \msagljs{} is available at \url{https://github.com/microsoft/msagljs} under the MIT license.
 
