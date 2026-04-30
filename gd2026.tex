@@ -462,14 +462,16 @@ anchored to a single point, vertices of the source or target obstacle
 that appear on the funnel's left and right chains can wrap a chain
 around the obstacle and force the path to detour around its corners.
 We eliminate these detours by \emph{collapsing} such vertices
-selectively to the corresponding node center. Walking each chain
-outward from~$s$, we locate the last source-owned vertex at which the
-chain bends around~$s$ rather than moving away from it, and replace
-every source-owned vertex on that chain up to and including that one
-by~$s$; the target end is processed mirror-symmetrically. Diagonals
-whose two endpoints coincide after collapse are dropped, and the
-left/right orientation of each surviving diagonal is preserved from
-the uncollapsed geometry.
+selectively to the corresponding node center. Walking the right chain
+of the sleeve outward from~$s$, we find the first vertex of the source
+obstacle at which the chain turns right toward~$s$, and replace every
+source-owned vertex on that chain up to and including this one by~$s$.
+The left chain is processed mirror-symmetrically (with left turns
+instead of right), and the target end likewise. Diagonals whose two
+endpoints coincide after collapse are dropped, and the left/right
+orientation of each surviving diagonal is preserved from the
+uncollapsed geometry. In Figure~\ref{fig:collapse}(a) the two
+collapsed vertices, one on each chain, are marked in yellow.
 
 After collapse, the funnel sees a wide opening at each endpoint and naturally selects the optimal exit direction. A final arrowhead-trimming step clips the path at the node boundary curves.
 
@@ -487,7 +489,7 @@ The implementation also offers an optional pass that fits a Bezier segment into 
     \includegraphics[width=\linewidth]{sleeve_OSHA_SMALLJON_collapsed.pdf}\\[2pt]
     {\small (b) after collapse}
   \end{minipage}
-  \caption{Effect of vertex collapse on the OSHA--SMALLJON edge of the Game of Thrones graph. Endpoints are shown as blue dots; their padded obstacles are highlighted in light blue. (a)~The sleeve as a union of CDT triangles (light blue) and the funnel path through it (red, 7~waypoints). (b)~The sleeve after collapse, drawn as a single purple polygon with the source/target obstacles merged into the corresponding endpoints, and the funnel path through the collapsed sleeve (red, 5~waypoints, 21\% shorter). Collapsing widens the funnel opening at each endpoint and removes the spurious detours around obstacle corners.}
+  \caption{Effect of vertex collapse on the OSHA--SMALLJON edge of the Game of Thrones graph. Endpoints are shown as blue dots; their padded obstacles are highlighted in light blue. (a)~The sleeve as a union of CDT triangles (light blue) and the funnel path through it (red, 7~waypoints). The two yellow dots mark the source-obstacle vertices that get collapsed, one on each chain. (b)~The sleeve after collapse, drawn as a single purple polygon with the source/target obstacles merged into the corresponding endpoints, and the funnel path through the collapsed sleeve (red, 5~waypoints, 21\% shorter). Collapsing widens the funnel opening at each endpoint and removes the spurious detours around obstacle corners.}
   \label{fig:collapse}
 \end{figure}
 

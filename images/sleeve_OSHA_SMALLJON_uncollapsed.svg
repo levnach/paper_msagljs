@@ -33,5 +33,7 @@
 <polyline points="942.075391843011,1616.1492230193103 957.406446530511,1605.9492230193105 1024.6148147589743,1510.3038199911223 1057.2381780997996,1461.3686763270387" fill="none" stroke="#D32F2F" stroke-width="2.5"/>
 <circle cx="942.075391843011" cy="1616.1492230193103" r="3" fill="#0D47A1" stroke="white" stroke-width="0.8"/>
 <circle cx="1057.2381780997996" cy="1461.3686763270387" r="3" fill="#0D47A1" stroke="white" stroke-width="0.8"/>
+<circle cx="926.744337155511" cy="1605.9492230193105" r="4" fill="#FFC107" stroke="#6A1B9A" stroke-width="1.5"/>
+<circle cx="957.406446530511" cy="1605.9492230193105" r="4" fill="#FFC107" stroke="#6A1B9A" stroke-width="1.5"/>
 </g>
 </svg>
