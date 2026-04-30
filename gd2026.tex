@@ -456,12 +456,13 @@ Before launching the sleeve search for an edge $(s,t)$ we attempt an even cheape
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
-The sleeve passes through triangles whose vertices lie on padded
-obstacle boundaries. Near the source and target, where the funnel is
-anchored to a single point, vertices of the source or target obstacle
-that appear on the funnel's left and right chains can wrap a chain
-around the obstacle and force the path to detour around its corners;
-see Figure~\ref{fig:collapse}(a). We eliminate these detours by
+We improve the sleeve's geometry in the situation depicted in
+Figure~\ref{fig:collapse}. The sleeve passes through triangles whose
+vertices lie on padded obstacle boundaries, and near the source and
+target, where the funnel is anchored to a single point, vertices of
+the source or target obstacle that appear on the funnel's left and
+right chains can wrap a chain around the obstacle and force the path
+to detour around its corners. We eliminate these detours by
 \emph{collapsing} such vertices selectively to the corresponding node
 center. Walking the right chain of the sleeve outward from~$s$, we
 find the first vertex of the source obstacle at which the chain turns
