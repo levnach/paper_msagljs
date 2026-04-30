@@ -451,6 +451,8 @@ sequence of triangles will do.
 
 To obtain the sleeve we run a shortest-path search on~$D$ where the step from one triangle to a neighbor costs the Euclidean distance between their centroids; triangles inside obstacles other than the source and target obstacles are excluded. The natural per-edge instantiation is A*~\cite{hart1968formal} with the straight-line distance to~$t$ as heuristic. When a node has many incident edges, however, running independent searches is wasteful. We instead group edges by source~$s$ and run a single Dijkstra computation per source, expanding until all targets are reached and recovering each sleeve by following parent pointers. This reduces the number of searches from~$m$ to at most~$n$, the number of nodes; on the Game of Thrones social network (407 nodes, 2\,639 edges, 331 distinct sources) it cuts routing time by~30\%.
 
+Before launching the sleeve search for an edge $(s,t)$ we attempt an even cheaper shortcut: starting at the triangle containing~$s$, we walk the triangulation along the segment $\overline{st}$ triangle by triangle and check whether any traversed triangle is interior to a third obstacle. If none is, the straight segment is the geodesic and we use it directly, skipping both the dual-graph search and the funnel.
+
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
 
@@ -472,43 +474,6 @@ After collapse, the funnel sees a wide opening at each endpoint and naturally se
   \caption{Effect of vertex collapse on the CERSEI--SANSA edge. Light blue: sleeve triangles. Orange dashed: funnel path before collapse (3 waypoints). Red solid: funnel path after collapse (2 waypoints, 12\% shorter). Collapsing obstacle vertices to the node center widens the funnel opening and removes the detour.}
   \label{fig:collapse}
 \end{figure}
-
-%% ═══════════════════════════════════════════════════════════════════
-\section{The Portal Graph}
-\label{sec:portals}
-
-The batched Dijkstra approach of Section~\ref{sec:sleeve} still requires exploring much of the CDT for each source node. To enable faster queries, we introduce the \emph{portal graph}---an abstraction that separates the free-space routing problem from the local obstacle traversal.
-
-\subsection{Portal Triangles}
-
-For each node obstacle, we identify its \emph{portal triangles}: the free-space CDT triangles that share an edge with the obstacle boundary. Formally, a triangle~$t$ is a portal of obstacle~$O$ if $t$ is free-space and at least two of its three CDT sites belong to~$O$'s boundary polyline. Portals serve as entry and exit points: any shortest path from the interior of~$O$ to free space must pass through a portal triangle.
-
-\subsection{Structure of the Portal Graph}
-\label{sec:portal-structure}
-
-The portal graph $G_P$ is defined as follows:
-\begin{itemize}
-\item \textbf{Nodes.} For each graph node~$v$, the center point~$c_v$ and all portal triangles $\{p_1^v, p_2^v, \ldots\}$ of $v$'s obstacle are nodes of~$G_P$.
-\item \textbf{Interior edges.} Each center~$c_v$ is connected to every portal~$p_i^v$ of the same obstacle, with weight equal to the BFS distance through the obstacle's interior triangles.
-\item \textbf{Free-space edges.} Portal triangles of different obstacles are connected through the free-space CDT dual graph.
-\end{itemize}
-
-To route a graph edge from node~$w$ to node~$u$, we find the shortest path in~$G_P$ from~$c_w$ to~$c_u$. This path decomposes into three segments:
-\begin{enumerate}
-\item An \emph{interior path} from $c_w$ through $w$'s obstacle to some portal~$p_i^w$.
-\item A \emph{free-space path} from $p_i^w$ to some portal~$p_j^u$ of~$u$.
-\item An \emph{interior path} from $p_j^u$ through $u$'s obstacle to~$c_u$.
-\end{enumerate}
-
-The free-space segment (2) is the bottleneck: it requires a shortest-path query on the free-space dual graph, which may contain thousands of triangles. We answer these queries with the batched Dijkstra trees of Section~\ref{sec:sleeve}.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.75\textwidth]{portal_graph_melisandre_stannis.pdf}
-  \caption{The portal graph for the MELISANDRE--STANNIS edge on the Game of Thrones social network. Orange triangles are portals---free-space CDT triangles adjacent to the obstacle boundary. Blue dashed arrows show interior edges from node centers to portal centroids. Green-shaded triangles form the free-space sleeve found by the batched Dijkstra search. The thick red polyline shows the shortest path $c_{\text{MEL}} \to p_i \to \cdots \to p_j \to c_{\text{STAN}}$. Nearby node obstacles are shown in gray.}
-  \label{fig:portal-graph}
-\end{figure}
-
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{WebGL Rendering}
@@ -541,21 +506,21 @@ The renderer supports pan, zoom, hover highlighting, and click selection. Hoveri
 
 We evaluate the sleeve routing method on benchmark graphs from the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest~\cite{composers}, the Graphviz test suite~\cite{b103,b100}, and the Gnutella P2P network~\cite{gnutella}. All experiments run in Node.js on a laptop with an Apple M1 processor. Layout uses Pivot MDS; timings include CDT construction, routing, and curve smoothing.
 
-Table~\ref{tab:perf} reports the performance of the Dijkstra-tree sleeve router, Section~\ref{sec:sleeve}. For each graph, we report the number of CDT triangles, free-space triangles, the total number of portal triangles across all nodes, and the total routing time.
+Table~\ref{tab:perf} reports the performance of the Dijkstra-tree sleeve router, Section~\ref{sec:sleeve}. For each graph, we report the number of CDT triangles, free-space triangles, and the total routing time.
 
 \begin{table}[t]
   \centering
   \scriptsize
   \setlength{\tabcolsep}{3pt}
-  \begin{tabular}{@{}lrrrrrr@{}}
+  \begin{tabular}{@{}lrrrrr@{}}
     \hline
-    Graph & Nodes & Edges & CDT\,$\triangle$ & Free\,$\triangle$ & Portals & Dijkstra\,(ms) \\
+    Graph & Nodes & Edges & CDT\,$\triangle$ & Free\,$\triangle$ & Dijkstra\,(ms) \\
     \hline
-    GoT~\cite{beveridge2018game} & 407 & 2\,639 & 3\,258 & 2\,444 & 1\,628 & 277 \\
-    b103~\cite{b103} & 944 & 2\,438 & 7\,554 & 5\,666 & 3\,776 & 754 \\
-    b100~\cite{b100} & 1\,463 & 5\,806 & 11\,706 & 8\,780 & 5\,852 & 2\,120 \\
-    composers~\cite{composers} & 3\,405 & 13\,832 & 27\,242 & 20\,432 & 13\,620 & 9\,335 \\
-    Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 87\,010 & 65\,258 & 43\,504 & 93\,760 \\
+    GoT~\cite{beveridge2018game} & 407 & 2\,639 & 3\,258 & 2\,444 & 277 \\
+    b103~\cite{b103} & 944 & 2\,438 & 7\,554 & 5\,666 & 754 \\
+    b100~\cite{b100} & 1\,463 & 5\,806 & 11\,706 & 8\,780 & 2\,120 \\
+    composers~\cite{composers} & 3\,405 & 13\,832 & 27\,242 & 20\,432 & 9\,335 \\
+    Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 87\,010 & 65\,258 & 93\,760 \\
     \hline
   \end{tabular}
   \caption{Sleeve routing benchmarks. Dijkstra: per-source Dijkstra trees on the CDT dual.}
@@ -568,7 +533,7 @@ The Dijkstra-tree approach scales to graphs with tens of thousands of edges. Rou
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The sleeve routing method routes edges directly on the CDT dual graph using a portal graph abstraction and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
+We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The sleeve routing method routes edges directly on the CDT dual graph using batched Dijkstra trees and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
 
 \msagljs{} is available at \url{https://github.com/microsoft/msagljs} under the MIT license.
 
