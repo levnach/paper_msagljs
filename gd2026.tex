@@ -7,12 +7,13 @@
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{booktabs}
+\usepackage{tikz}
 
 \graphicspath{{./images/}}
 
 \bibliographystyle{plainurl}% mandatory for LIPIcs
 
-\title{MSAGLJS: Graph Layout, Edge Routing, and Tiling for the Web}
+\title{MSAGLJS: Browsing Large Graphs with Tile Pyramids and Sleeve Routing}
 
 \author{Lev Nachmanson}{Microsoft Research, Redmond, US}{levnach@hotmail.com}{}{} 
 \author{Xiaoji Chen}{}{cxiaoji@gmail.com}{}{}
@@ -64,34 +65,32 @@
 \maketitle
 
 \begin{abstract}
-We present \msagljs{}, an open-source TypeScript library for graph
-visualization in web browsers, distributed as a set of NPM
-packages\footnote{\texttt{@msagl/core}, \texttt{@msagl/drawing},
-\texttt{@msagl/parser}, \texttt{@msagl/renderer-webgl} --- all
-available on \url{https://www.npmjs.com/}.}. It provides a set of
-layout algorithms, a set of edge routing algorithms, and two renderers
-that run in an Internet browser: one based on SVG and another based on
-WebGL via the deck.gl framework. In this paper we concentrate on two
-features of the latter renderer.
+We present a new way to visualize a large graph in the style of
+online geographic maps. The method builds a \emph{tile pyramid} for
+\emph{semantic zoom}: at every zoom level the labels of the
+highest-ranked nodes remain readable, just as the names of major
+geographical features stay readable on those maps.
 
-First, a \emph{tiling scheme} that turns a large graph into a
-navigable map with \emph{semantic zoom}: at every zoom level the
-labels of the highest-ranked nodes remain readable, just as the names
-of major geographical features stay readable on digital maps---making
-the browsing experience familiar to anyone used to online maps. Second, a
-\emph{sleeve routing} method that routes each edge along the
-shortest path in homotopy class around the node obstacles, based on
-the Constrained Delaunay Triangulation. The whole pipeline runs
-client-side, without a dedicated server, on a phone or a laptop. In
-this configuration the WebGL renderer interacts smoothly with graphs
-of up to 10\,000 nodes and 40\,000 edges.\TODO{Re-run benchmarks to
-  confirm the maximum graph size; current 10\,000 / 40\,000 figures
-  are placeholders.}
+The edges are routed by a method we call \emph{sleeve routing}, which
+computes for each edge the shortest path in its homotopy class around
+the node obstacles, using the Constrained Delaunay Triangulation.
+We apply several heuristics to speed up the routing.
 
-\msagljs{} is available at \url{https://github.com/microsoft/msagljs}.
+We implemented our approach in the WebGL renderer of \msagljs{}, an
+open-source TypeScript library for graph visualization in web
+browsers, with the entire pipeline running client-side, without a
+dedicated server. We target graphs with at most 40K nodes and 100K
+edges. The renderer's demo can be seen at
+\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}.
+
+\msagljs{} is available on
+GitHub\footnote{\url{https://github.com/microsoft/msagljs}} and as
+NPM packages\footnote{\texttt{@msagl/core}, \texttt{@msagl/drawing},
+\texttt{@msagl/parser}, \texttt{@msagl/renderer-svg},
+\texttt{@msagl/renderer-webgl} --- all on
+\url{https://www.npmjs.com/}.}.
 \end{abstract}
 
-%% ═══════════════════════════════════════════════════════════════════
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.48\textwidth]{tile_pyramid_coarse.pdf}\hfill
@@ -170,29 +169,25 @@ results, but they are not practical: both build elaborate global data
 structures that we avoid.
 Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}. Our sleeve method eliminates the spanner entirely and routes directly on the CDT dual graph, and is, to our knowledge, the first routing algorithm integrated with a browser-side tile pyramid that reroutes edges per level.
 
+\paragraph{CDT-based pathfinding.}
+The closest precedent to our routing pipeline is the CDT-and-funnel pathfinder of Demyen and Buro~\cite{demyen2006efficient}, originally designed for game-AI units of nonzero radius. They run admissible A* search on the CDT dual (with a reduced-graph variant that collapses corridor chains into single abstract edges) to recover provably shortest paths. Their search is, however, per-query: the bounds depend on the start and goal, so it cannot share work across the many edges leaving a common source as our per-source Dijkstra does. For the graphs we target this would be roughly an order of magnitude slower; we therefore trade their proven optimality for batched throughput suitable for browser-side rerouting at every zoom level.
+
 
 %% ═══════════════════════════════════════════════════════════════════
-\section{System Architecture}
-\label{sec:arch}
+\section{Loading a Graph}
 
-\msagljs{} is organized as a monorepo with five NPM packages:
-
-\begin{description}
-\item[\texttt{@msagl/core}] --- Graph data structures, layout algorithms (Sugiyama, MDS, IPSep-CoLa), edge routing, CDT, tiling.
-\item[\texttt{@msagl/drawing}] --- Visual attributes (colors, shapes, labels) bridging the graph model and renderers.
-\item[\texttt{@msagl/parser}] --- Parsers for DOT and JSON graph formats.
-\item[\texttt{@msagl/renderer-svg}] --- SVG-based renderer for small graphs.
-\item[\texttt{@msagl/renderer-webgl}] --- WebGL renderer using deck.gl~\cite{deckgl}, with tiling support.
-\end{description}
-
-The layout pipeline proceeds in three phases:
+The loading of a graph with the WebGL renderer starts with the initial
+layout and routing is done for the whole graph, and then the tiling
+process. For this method to be visually stable we use IPSep-CoLa
+layout followed by sleeve routing, see
+Section~\ref{sec:sleeve-routing}.
 \begin{enumerate}
 \item \textbf{Layout.} Node positions are computed by the chosen algorithm. For large undirected graphs the default is force-directed layout, IPsepCola, initialized with Pivot MDS~\cite{brandes2007eigensolver}; for directed graphs, Sugiyama layout is used.
 \item \textbf{Edge routing.} Edges are routed around node obstacles. The routing mode is configurable; this paper focuses on \emph{sleeve routing}, Section~\ref{sec:sleeve-routing}.
 \item \textbf{Tiling.} A tile hierarchy is built for level-of-detail rendering, Section~\ref{sec:tiling}.
 \end{enumerate}
 
-The WebGL renderer of Section~\ref{sec:webgl} consumes the tile hierarchy and renders the appropriate level of detail based on the current viewport.
+Next the renderer described in Section~\ref{sec:webgl} consumes the tile hierarchy and renders the appropriate level of detail based on the current viewport.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Tiling}
@@ -386,9 +381,7 @@ paper do not have subgraphs.
 
 Once each level $G_z$ has its final geometry, we cut that level into tiles. A tile is a pair $(\mathit{rect}, \mathit{tiledata})$, where $\mathit{tiledata}$ is a set of \emph{tile elements}: nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge clip is a pair $(e, p)$, with $p$ a continuous piece of the edge curve $c_e$ confined to $\mathit{rect}$.
 
-The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines, producing sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$.
-Invariant~$\mathcal{F}$ serves two purposes. Part~(a) makes subdivision cheap and local. Suppose a parent tile has rectangle $\mathit{rect}$ with horizontal and vertical midlines $\ell_h, \ell_v$. To split a clip $(e,p)$ into its children, we collect all intersections of the underlying curve $c_e$ with $\ell_h$ and $\ell_v$, restrict them to the parameter range $[\mathit{start},\mathit{end}]$ defining $p$, sort these parameters, and prepend $\mathit{start}$ and append $\mathit{end}$. This yields a sorted parameter list $\mathit{start}=t_0<t_1<\dots<t_m=\mathit{end}$, and the $m$ child sub-clips are exactly the curve pieces over consecutive intervals $[t_{u},t_{u+1}]$. Each piece is assigned to one of the four children by sampling $c_e$ at the midpoint $(t_u+t_{u+1})/2$ and comparing against the midlines. Crucially, no intersection with the four outer sides of $\mathit{rect}$ is ever computed: invariant~(a) guarantees that the curve already lies inside $\mathit{rect}$ between $t_0$ and $t_m$ and crosses its boundary only at those endpoints, so the midlines alone fully decompose the clip into rectangle-confined pieces. This reduces subdivision to one curve--line intersection per midline plus a sort, instead of a full 2D rectangle clip.
-Part~(b) is the rendering-correctness condition: at any zoom only the tiles intersecting the viewport are fetched and their clips drawn, and (b) guarantees that the union of what is drawn equals $c_e\cap\text{viewport}$ for every visible edge~$e$, so no segment is missed and none is drawn twice. The same invariant is also what makes the rerouting of Section~\ref{sec:level-reroute} compatible with tiling: whenever an edge curve~$c_e$ is replaced by a coarser-level route, (b) is reestablished by recomputing the clips of that edge inside every affected tile before the level is served.
+The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines into sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$. Part~(a) makes subdivision cheap and local: thanks to~(a) we never need to clip against the four outer sides of a tile, only against its two midlines. For the default polyline edges produced by the sleeve router this is trivial---each segment meets each midline at most once---so a clip is split by walking its segments and cutting at the midline crossings. The optional Bezier-corner pass of Section~\ref{sec:collapse} replaces these line--line intersections with curve--line ones plus a parameter sort, but obeys the same invariant. Part~(b) is the rendering-correctness condition: at any zoom only the tiles intersecting the viewport are fetched and their clips drawn, and (b) guarantees that the union of what is drawn equals $c_e\cap\text{viewport}$ for every visible edge~$e$. The same invariant makes the rerouting of Section~\ref{sec:level-reroute} compatible with tiling: whenever an edge curve is replaced by a coarser-level route, (b) is reestablished by recomputing the affected clips.
 
 Subdivision of a level stops as soon as either of the following holds: (i)~every tile at that level already contains at most \capac{} elements; or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively. These are the same conditions that determine $Z$ (Algorithm~\ref{alg:build-pyramid}).
 
@@ -449,7 +442,30 @@ triangles. The sleeve router itself is therefore agnostic to how the
 sleeve is produced; any search on the dual graph that returns such a
 sequence of triangles will do.
 
-To obtain the sleeve we run a shortest-path search on~$D$ where the step from one triangle to a neighbor costs the Euclidean distance between their centroids; triangles inside obstacles other than the source and target obstacles are excluded. The natural per-edge instantiation is A*~\cite{hart1968formal} with the straight-line distance to~$t$ as heuristic. When a node has many incident edges, however, running independent searches is wasteful. We instead group edges by source~$s$ and run a single Dijkstra computation per source, expanding until all targets are reached and recovering each sleeve by following parent pointers. This reduces the number of searches from~$m$ to at most~$n$, the number of nodes; on the Game of Thrones social network (407 nodes, 2\,639 edges, 331 distinct sources) it cuts routing time by~30\%.
+To obtain the sleeve we run a shortest-path search on~$D$ where the
+step from one triangle to a neighbor costs the Euclidean distance
+between their centroids; triangles inside obstacles other than the
+source and target obstacles are excluded. The natural per-edge
+instantiation is A*~\cite{hart1968formal} with the straight-line
+distance to~$t$ as heuristic. When a node has many incident edges,
+however, running independent searches is wasteful. We instead group
+edges by source~$s$ and run a single Dijkstra computation per source,
+expanding until all targets are reached and recovering each sleeve by
+following parent pointers. This reduces the number of searches
+from~$m$ to at most~$n$, the number of nodes; on the Game of Thrones
+social network (407 nodes, 2\,639 edges) it cuts routing time by~30\%.
+
+Since the query edges are undirected on~$D$, each can be served from
+either endpoint, so the number of distinct roots is in turn reducible
+by reorienting query edges to minimize that count---an instance of
+minimum vertex cover on the demand graph, well approximated in linear
+time by the greedy maximum-degree rule and used as a source-side
+speed-up in many-to-many shortest-path
+frameworks~\cite{knopp2007many}. Applying this heuristic reduces the
+number of Dijkstra trees from~331 (one per distinct source) to~199 on
+Game of Thrones and from~2\,645 to~1\,285 on the composers graph
+(3\,405 nodes, 13\,832 edges), shortening the routing pass by
+$\sim$17\% and $\sim$35\% respectively.
 
 Before launching the sleeve search for an edge $(s,t)$ we attempt an even cheaper shortcut: starting at the triangle containing~$s$, we walk the triangulation along the segment $\overline{st}$ triangle by triangle and check whether any traversed triangle is interior to a third obstacle. If none is, the straight segment is the geodesic and we use it directly, skipping both the dual-graph search and the funnel.
 
@@ -472,7 +488,9 @@ vertex in Figure~\ref{fig:collapse}(a) is marked in yellow.
 After collapse, the funnel sees a wide opening at each endpoint, as in
 Figure~\ref{fig:collapse}(b), and naturally selects the optimal exit
 direction. A final arrowhead-trimming step clips the path at the node
-boundary curves.
+boundary curves. Collapse might cause the resulting path to overlap
+nodes other than the source and the target, but we have found the
+effect to be negligible.
 
 The implementation also offers an optional pass that fits a Bezier segment into each polyline corner to render edges as smooth curves. It is disabled by default for performance: the polyline rendering is fast and visually acceptable, so we trade the smoother curves for routing speed.
 
@@ -488,7 +506,7 @@ The implementation also offers an optional pass that fits a Bezier segment into 
     \includegraphics[width=\linewidth]{sleeve_LORAS_RENLY_collapsed.pdf}\\[2pt]
     {\small (b) after collapse}
   \end{minipage}
-  \caption{Effect of vertex collapse on the LORAS--RENLY edge of the Game of Thrones graph. Endpoints are shown as blue dots; their padded obstacles are highlighted in light blue. (a)~The sleeve as a union of CDT triangles (light blue) with the funnel path (red) running through it; the dark blue outline is the sleeve polygon used by the funnel algorithm. The yellow dot marks the source-obstacle vertex that gets collapsed. (b)~The sleeve after collapse, drawn as a single purple polygon with the source/target obstacles merged into the corresponding endpoints, and the funnel path (red) through it. Collapsing widens the funnel opening at the endpoint and removes the spurious detour around the obstacle corner.}
+  \caption{Effect of vertex collapse on the LORAS--RENLY edge of the Game of Thrones graph. Endpoints are shown as blue dots; their padded obstacles are highlighted in light blue. (a)~The CDT triangles forming the sleeve are drawn in cornflower blue and the funnel path in red; the thick black polyline is the perimeter of the non-collapsed sleeve. The yellow dot marks the source-obstacle vertex that gets collapsed. (b)~The sleeve after collapse, drawn as a single purple polygon with the source/target obstacles merged into the corresponding endpoints, and the funnel path (red) through it. Collapsing widens the funnel opening at the endpoint and removes the spurious detour around the obstacle corner.}
   \label{fig:collapse}
 \end{figure}
 
@@ -496,10 +514,101 @@ The implementation also offers an optional pass that fits a Bezier segment into 
 \section{WebGL Rendering}
 \label{sec:webgl}
 
-The WebGL renderer uses deck.gl~\cite{deckgl}, a GPU-accelerated framework for large-scale data visualization. The renderer sets up an \texttt{OrthographicView}, with no perspective distortion, and a \texttt{TileLayer} that dynamically loads tile data based on the current viewport.
+The WebGL renderer uses deck.gl~\cite{deckgl}, a GPU-accelerated framework for large-scale data visualization. The renderer sets up an \texttt{OrthographicView}, with no perspective distortion, and a \texttt{TileLayer} that dynamically loads tile data based on the current viewport. Because deck.gl's \texttt{TileLayer} expects a power-of-two pyramid of 512-pixel tiles, the root tile size is rounded up to the nearest power of two and a \emph{start zoom} level is computed so that the root tile maps to deck.gl's 512-pixel tile size. The \texttt{TileLayer}'s \texttt{getTileData} callback then translates deck.gl tile coordinates $(x, y, z)$ to \msagljs{} tile map coordinates, fetching the precomputed tile data.
 
-\paragraph{Tile resolution mapping.}
-The root tile size is rounded up to the nearest power of two. A \emph{start zoom} level is computed so that the root tile maps to the standard 512-pixel tile size of deck.gl. The \texttt{TileLayer}'s \texttt{getTileData} callback translates deck.gl tile coordinates $(x, y, z)$ to \msagljs{} tile map coordinates, fetching the precomputed tile data.
+In deck.gl's \texttt{OrthographicView} the screen scale at view zoom~$v$ is $s = 2^{v}$ pixels per world unit, and the start zoom is $v_0 = \log_2(512/W)$, so that at $v = v_0$ the root tile of width~$W$ projects to $512$~pixels. The \texttt{TileLayer} then requests pyramid level $z = \lfloor v - v_0 \rfloor$, at which each tile covers $W/2^{z}$ world units and renders at about $512$~pixels. Note $v_0$ lives in the same view-zoom space as $v$ and is not a pyramid level: when the bounding box is bigger than one $512$-pixel tile, $v_0$ is negative. For example, with a bounding box of $1000\times 800$ world units rounded up to $W = 1024$ we get $v_0 = -1$; at $v = 2$ the scale is $s = 4$~px/wu, the chosen level is $z = 3$, and each level-$3$ tile spans $128$~wu. A $1280\times 800$-pixel viewport then covers $320\times 200$~wu and intersects $\lceil 320/128 \rceil \times \lceil 200/128 \rceil = 3\times 2 = 6$ level-$3$ tiles, the only ones fetched (Figure~\ref{fig:tile-pyramid-3d}). Between integer view zooms the level is held fixed and the tiles are GPU-scaled, so continuous panning and zooming never block on routing or rerouting.
+
+\begin{figure}[!tb]
+  \centering
+  \resizebox{0.7\linewidth}{!}{%
+  \begin{tikzpicture}[
+      x={(1.0cm,0cm)},
+      y={(0.40cm,0.60cm)},
+      z={(0cm,1.0cm)},
+      line cap=round,
+    ]
+    \def\W{2.0}      %% slab half-width in cm; slab is square, span (-W,-W)..(W,W).
+    \def\dh{1.4}     %% vertical spacing between slabs
+    %% Pan center for the user's viewport on each slab (in slab cm).
+    %% At z=3, with this center the worked-example viewport intersects
+    %% exactly the 3x2 = 6 tiles required by the body text.
+    \def\cx{-0.25} \def\cy{0}
+    %% Screenshot is 1226x950 px. At view zoom v = z-1 (the integer zoom
+    %% that snaps to level z when v_0=-1), the viewport in world units is
+    %% (1226/2^v) x (950/2^v). With the slab's full width 2W = 4 cm
+    %% representing the W=1024 wu world, half-extents in cm are
+    %% hx = 1226/(512*2^v) and hy = 950/(512*2^v).
+    \pgfmathsetmacro{\iwfull}{2*\W}
+    %% Painter's order: bottom (z=4) up to top (z=0).
+    \foreach \zlev/\h/\img in {%
+        4/0/got_view_z4,%
+        3/1/got_view_z3,%
+        2/2/got_view_z2,%
+        1/3/got_view_z1,%
+        0/4/got_view_z0%
+      } {
+      \pgfmathtruncatemacro{\nn}{int(2^\zlev)}
+      \pgfmathsetmacro{\step}{2*\W/\nn}
+      \pgfmathsetmacro{\twov}{pow(2,\zlev-1)}
+      \pgfmathsetmacro{\hx}{1226/(512*\twov)}
+      \pgfmathsetmacro{\hy}{950/(512*\twov)}
+      %% Slab outline with a faint fill so the empty area is visibly empty.
+      \filldraw[fill=blue!4, draw=blue!55, line width=0.5pt]
+        (-\W,-\W,\h*\dh) -- (\W,-\W,\h*\dh) -- (\W,\W,\h*\dh) -- (-\W,\W,\h*\dh) -- cycle;
+      %% Place the LOD screenshot. Always render the screenshot at its
+      %% actual viewport size in slab cm, centered at the pan point. For
+      %% z<2 this rectangle exceeds the slab, but the slab clip leaves
+      %% only the world-content portion visible, which then exactly
+      %% fills the slab. For z>=2 the rectangle fits inside the slab,
+      %% leaving the rest visibly empty.
+      \pgfmathsetmacro{\iw}{2*\hx}
+      \pgfmathsetmacro{\ih}{2*\hy}
+      \pgfmathsetmacro{\vxa}{\cx-\hx}
+      \pgfmathsetmacro{\vya}{\cy-\hy}
+      \begin{scope}
+        \clip (-\W,-\W,\h*\dh) -- (\W,-\W,\h*\dh) -- (\W,\W,\h*\dh) -- (-\W,\W,\h*\dh) -- cycle;
+        \begin{scope}[shift={(\vxa,\vya,\h*\dh)}]
+          \pgflowlevelsynccm
+          \pgftransformcm{1}{0}{0.40}{0.60}{\pgfpointorigin}
+          \pgftext[base,left]
+            {\includegraphics[width=\iw cm, height=\ih cm]{\img}}
+        \end{scope}
+      \end{scope}
+      %% Faint tile grid: 2^z x 2^z square cells.
+      \ifnum\nn>1
+        \foreach \i in {1,...,\numexpr\nn-1\relax} {
+          \pgfmathsetmacro{\u}{-\W + \i*\step}
+          \draw[blue!50, line width=0.25pt] (\u,-\W,\h*\dh) -- (\u,\W,\h*\dh);
+          \draw[blue!50, line width=0.25pt] (-\W,\u,\h*\dh) -- (\W,\u,\h*\dh);
+        }
+      \fi
+      %% Worked example at z=3: outline the 3 x 2 = 6 tiles fetched at v=2.
+      \ifnum\zlev=3
+        \pgfmathsetmacro{\vxa}{\cx-\hx} \pgfmathsetmacro{\vxb}{\cx+\hx}
+        \pgfmathsetmacro{\vya}{\cy-\hy} \pgfmathsetmacro{\vyb}{\cy+\hy}
+        \pgfmathtruncatemacro{\ia}{floor((\vxa+\W)/\step)}
+        \pgfmathtruncatemacro{\ib}{floor((\vxb+\W)/\step)}
+        \pgfmathtruncatemacro{\ja}{floor((\vya+\W)/\step)}
+        \pgfmathtruncatemacro{\jb}{floor((\vyb+\W)/\step)}
+        \foreach \i in {\ia,...,\ib} {
+          \foreach \j in {\ja,...,\jb} {
+            \pgfmathsetmacro{\xa}{-\W + \i*\step}
+            \pgfmathsetmacro{\xb}{-\W + (\i+1)*\step}
+            \pgfmathsetmacro{\ya}{-\W + \j*\step}
+            \pgfmathsetmacro{\yb}{-\W + (\j+1)*\step}
+            \draw[orange!75!black, line width=0.7pt]
+              (\xa,\ya,\h*\dh) -- (\xb,\ya,\h*\dh) -- (\xb,\yb,\h*\dh) -- (\xa,\yb,\h*\dh) -- cycle;
+          }
+        }
+      \fi
+      %% Per-slab label on the front-left, where no slab above can occlude it.
+      \node[anchor=east, font=\scriptsize] at (-\W-0.05, -\W, \h*\dh)
+        {$z{=}\zlev$\,(\nn${\times}$\nn)};
+    }
+  \end{tikzpicture}}
+  \caption{The entities rendered on each level as the user zooms in.}
+  \label{fig:tile-pyramid-3d}
+\end{figure}
 
 \paragraph{Rendering layers.}
 Each tile is rendered as a composite deck.gl layer containing:
@@ -511,9 +620,6 @@ Each tile is rendered as a composite deck.gl layer containing:
 \item A \textbf{TextLayer} for edge labels.
 \end{itemize}
 
-\paragraph{Style-based filtering.}
-A declarative style specification allows per-layer control of visibility ranges (\texttt{minZoom}, \texttt{maxZoom}), colors, opacity, sizes, and filters. Styles can reference the node's PageRank to, e.g., show labels only for important nodes at medium zoom levels.
-
 \paragraph{Interaction.}
 The renderer supports pan, zoom, hover highlighting, and click selection. Hovering an edge highlights it and its incident nodes. The \texttt{zoomTo} API animates the viewport to a target rectangle with smooth transitions.
 
@@ -521,30 +627,39 @@ The renderer supports pan, zoom, hover highlighting, and click selection. Hoveri
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the sleeve routing method on benchmark graphs from the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest~\cite{composers}, the Graphviz test suite~\cite{b103,b100}, and the Gnutella P2P network~\cite{gnutella}. All experiments run in Node.js on a laptop with an Apple M1 processor. Layout uses Pivot MDS; timings include CDT construction, routing, and curve smoothing.
+We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in Node.js (single process, headless; not a browser) on an Apple~M4~Max laptop with 48\,GB of unified memory. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}, capacity~$\mathcal{C}=500$ and $Z_{\max}=8$.
 
-Table~\ref{tab:perf} reports the performance of the Dijkstra-tree sleeve router, Section~\ref{sec:sleeve}. For each graph, we report the number of CDT triangles, free-space triangles, and the total routing time.
+Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level rerouting of Section~\ref{sec:level-reroute}; and \emph{Total}, the end-to-end loading time including parsing.
 
 \begin{table}[t]
   \centering
   \scriptsize
-  \setlength{\tabcolsep}{3pt}
+  \setlength{\tabcolsep}{6pt}
   \begin{tabular}{@{}lrrrrr@{}}
-    \hline
-    Graph & Nodes & Edges & CDT\,$\triangle$ & Free\,$\triangle$ & Dijkstra\,(ms) \\
-    \hline
-    GoT~\cite{beveridge2018game} & 407 & 2\,639 & 3\,258 & 2\,444 & 277 \\
-    b103~\cite{b103} & 944 & 2\,438 & 7\,554 & 5\,666 & 754 \\
-    b100~\cite{b100} & 1\,463 & 5\,806 & 11\,706 & 8\,780 & 2\,120 \\
-    composers~\cite{composers} & 3\,405 & 13\,832 & 27\,242 & 20\,432 & 9\,335 \\
-    Gnutella04~\cite{gnutella} & 10\,876 & 39\,994 & 87\,010 & 65\,258 & 93\,760 \\
-    \hline
+    \toprule
+    Graph & $|V|$ & $|E|$ & Routing & Tiling & Total \\
+    \midrule
+    gameofthrones      &     407 &   2\,639 &   0.17 &   0.22 &   1.94 \\
+    composers          &  3\,405 &  13\,832 &   4.37 &   5.20 &  10.39 \\
+    ca-GrQc            &  5\,241 &  14\,484 &   4.01 &   3.15 &   8.42 \\
+    ca-HepTh           &  9\,875 &  25\,973 &  26.83 &  15.95 &  46.07 \\
+    ca-HepPh           & 12\,008 & 236\,978 &  82.10 & 156.60 & 246.30 \\
+    facebook\_combined &  4\,039 &  88\,234 &  12.25 &  29.87 &  43.82 \\
+    ca-CondMat         & 23\,133 & 186\,878 & 224.20 & 188.10 & 431.20 \\
+    deezer\_europe     & 28\,281 &  92\,752 & 384.20 & 143.00 & 552.20 \\
+    delaunay\_n15      & 32\,768 &  98\,274 &  31.95 &  16.08 &  76.30 \\
+    \bottomrule
   \end{tabular}
-  \caption{Sleeve routing benchmarks. Dijkstra: per-source Dijkstra trees on the CDT dual.}
+  \caption{End-to-end loading benchmarks on an Apple M4 Max laptop, all times
+    in seconds. \emph{Routing} sums the CDT-construction and Dijkstra-tree
+    sleeve-search phases of Section~\ref{sec:sleeve} on the full graph;
+    \emph{Tiling} is the build of the tile pyramid (capacity $\mathcal{C}=500$,
+    $Z_{\max}=8$) of Section~\ref{sec:tiling}, which includes the per-level
+    rerouting; \emph{Total} adds parsing.}
   \label{tab:perf}
 \end{table}
 
-The Dijkstra-tree approach scales to graphs with tens of thousands of edges. Routing the full Gnutella04 graph (10\,876 nodes, 39\,994 edges) on an Apple M1 laptop takes about 94\,s, which is amortized in interactive use because tile pyramids cache the routes computed at the finest level and rerun only the per-level A* described in Section~\ref{sec:tiling} on coarser zooms.
+The CDT phase contributes negligibly to the routing column---from 8\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes of Section~\ref{sec:level-reroute}, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}

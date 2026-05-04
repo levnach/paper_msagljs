@@ -18,7 +18,7 @@ SVG figures require Inkscape for conversion. Pre-converted PDFs live in `svg-ink
 
 ## Structure
 
-- `gd2026.tex` — **active paper** for GD 2026 submission (LIPIcs format, short paper, 250-line limit)
+- `gd2026.tex` — **active paper** for GD 2026 submission (LIPIcs format, long paper)
 - `main.tex` — original LNCS-format paper (edge routing + tiling); reference material
 - `main.bib` — shared bibliography (BibTeX)
 - `gd-lipics-v3.cls` / `lipics-v2021.cls` — LIPIcs class files for GD 2026 (do not edit)
@@ -28,9 +28,9 @@ SVG figures require Inkscape for conversion. Pre-converted PDFs live in `svg-ink
 
 ## GD 2026 Submission
 
-- **Format**: LIPIcs via `gd-lipics-v3` class. Short paper, 250-line limit (excluding front matter, refs, appendix).
+- **Format**: LIPIcs via `gd-lipics-v3` class. Long paper.
 - **Double-blind**: use `anonymous` class option for submission; remove for camera-ready.
-- **Category macro**: `\category{Track 2, Short Paper}` — valid options include Track 1/2, Short/Long Paper, Poster Abstract.
+- **Category macro**: `\category{Track 2, Long Paper}` — valid options include Track 1/2, Short/Long Paper, Poster Abstract.
 - **Required declarations**: `\GAIDecl{...}` (generative AI) and optionally `\USEDecl{...}` (user study ethics).
 - **Bibliography style**: `plainurl` (mandatory for LIPIcs).
 - **Deadlines**: Abstract May 6, Paper May 13, 2026.
