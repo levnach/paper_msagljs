@@ -91,14 +91,6 @@ NPM packages\footnote{\texttt{@msagl/core}, \texttt{@msagl/drawing},
 \url{https://www.npmjs.com/}.}.
 \end{abstract}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=0.48\textwidth]{tile_pyramid_coarse.pdf}\hfill
-  \includegraphics[width=0.48\textwidth]{tile_pyramid_fine.pdf}
-  \caption{Overview of the per-level-graph tiling scheme presented in Section~\ref{sec:tiling}, on the Game of Thrones graph. Two adjacent pyramid levels are shown, cropped to the same window; the coarser level is on the left, the finer one on the right. For each level a new graph is assembled from a PageRank-ranked subset of the nodes, and the top-ranked landmark, highlighted in amber, enters that level enlarged by a factor of two in each dimension. Remaining survivors, shown in light blue, are kept at a node-specific scale~$s_v\in[0.25,\,2]$ that shrinks with rank so that they do not overlap. Edges are rerouted per level with a sleeve-hint A* built from the finer-level route, which keeps the coarse shape close to the fine one and yields smooth transitions as the user pans and zooms.}
-  \label{fig:tile-pyramid}
-\end{figure}
-
 \section{Introduction}
 \label{sec:intro}
 
@@ -111,7 +103,7 @@ the smooth pan-and-zoom experience familiar from online
 maps. \msagljs{}\footnote{\url{https://github.com/microsoft/msagljs}}
 is an open-source TypeScript library that addresses these challenges
 by combining efficient layout algorithms, a novel edge routing method,
-and a tiling scheme for level-of-detail rendering.
+and a tiling scheme with semantic zoom.
 
 \msagljs{} is consumed as a set of NPM packages and renders graphs using WebGL through the deck.gl framework~\cite{deckgl}. It supports the layered Sugiyama scheme~\cite{sugiyama1981}, Pivot MDS~\cite{brandes2007eigensolver}, and IPSep-CoLa~\cite{dwyer2006ipsepcola}, with edges routed around node obstacles. Throughout this paper our typical example is a social network laid out by IPSep-CoLa; the methods we describe, however, are agnostic to the layout algorithm and apply to any node placement in which the nodes do not overlap. The rendering pipeline builds a hierarchy of tiles---analogous to map tiles---so that at any zoom level only a bounded number of entities are drawn. Tiles are delivered to the browser through the standard \texttt{TileLayer} of the \texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. Live demos are available online: a WebGL renderer for large graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}} and an SVG renderer for smaller, editable graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
 
@@ -170,83 +162,173 @@ structures that we avoid.
 Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}. Our sleeve method eliminates the spanner entirely and routes directly on the CDT dual graph, and is, to our knowledge, the first routing algorithm integrated with a browser-side tile pyramid that reroutes edges per level.
 
 \paragraph{CDT-based pathfinding.}
-The closest precedent to our routing pipeline is the CDT-and-funnel pathfinder of Demyen and Buro~\cite{demyen2006efficient}, originally designed for game-AI units of nonzero radius. They run admissible A* search on the CDT dual (with a reduced-graph variant that collapses corridor chains into single abstract edges) to recover provably shortest paths. Their search is, however, per-query: the bounds depend on the start and goal, so it cannot share work across the many edges leaving a common source as our per-source Dijkstra does. For the graphs we target this would be roughly an order of magnitude slower; we therefore trade their proven optimality for batched throughput suitable for browser-side rerouting at every zoom level.
+The closest precedent to our routing pipeline is the CDT-and-funnel
+pathfinder of Demyen and Buro~\cite{demyen2006efficient}, originally
+designed for game-AI units of nonzero radius. They run admissible A*
+search on the CDT dual (with a reduced-graph variant that collapses
+corridor chains into single abstract edges) to recover provably
+shortest paths. Their search is, however, per-query: the bounds depend
+on the start and goal, so it cannot share work across the edges with
+the same source as our per-source Dijkstra does. For the graphs we
+target this would be roughly an order of magnitude slower; we
+therefore trade their proven optimality for speed.
 
-
-%% ═══════════════════════════════════════════════════════════════════
-\section{Loading a Graph}
-
-The loading of a graph with the WebGL renderer starts with the initial
-layout and routing is done for the whole graph, and then the tiling
-process. For this method to be visually stable we use IPSep-CoLa
-layout followed by sleeve routing, see
-Section~\ref{sec:sleeve-routing}.
-\begin{enumerate}
-\item \textbf{Layout.} Node positions are computed by the chosen algorithm. For large undirected graphs the default is force-directed layout, IPsepCola, initialized with Pivot MDS~\cite{brandes2007eigensolver}; for directed graphs, Sugiyama layout is used.
-\item \textbf{Edge routing.} Edges are routed around node obstacles. The routing mode is configurable; this paper focuses on \emph{sleeve routing}, Section~\ref{sec:sleeve-routing}.
-\item \textbf{Tiling.} A tile hierarchy is built for level-of-detail rendering, Section~\ref{sec:tiling}.
-\end{enumerate}
-
-Next the renderer described in Section~\ref{sec:webgl} consumes the tile hierarchy and renders the appropriate level of detail based on the current viewport.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Tiling}
 \label{sec:tiling}
+The input to tiling is a laid-out graph together with routed edges: we
+prefer route the edges with sleeve routing
+(Section~\ref{sec:sleeve-routing}), to achieve the visual stability on
+a level change.The output is a sequence of $Z{+}1$ levels: level~$Z$
+is the finest, and level~$0$ is the coarsest. Each level is a
+collection of tiles indexed by integer $(x,y)$ grid coordinates. The
+output is consumed by the \texttt{TileLayer} of the
+\texttt{@deck.gl/geo-layers} package~\cite{deckglTileLayer}.
+Pseudocode~\ref{alg:build-pyramid} describes the algorithm building
+the tile pyramid.
+\begin{algorithm}[t]
+\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathit{minTileSize})$}
+\label{alg:build-pyramid}
+\begin{algorithmic}[1]
+\State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
+\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$
+\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements \textbf{and} its width/height $\ge \mathit{minTileSize}$}
+  \State $\mathit{levels}[z{+}1] \gets$ split every tile of $\mathit{levels}[z]$ into four sub-tiles
+  \State within each parent, distribute nodes/labels/arrowheads by bbox, and split each edge clip at the tile midlines (Section~\ref{sec:tile-build})
+  \State $z \gets z + 1$
+\EndWhile
+\State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
+\State compute $\mathrm{PageRank}(G)$
+\For{$z = Z-1$ \textbf{down to} $0$}
+  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
+  \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
+  \State reroute every edge $e\in E_z$ on this CDT, using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
+  \State for every tile $t$ at level $z$, recompute the clips of $e$ inside $t$ from the new curve, splitting at tile midlines
+\EndFor
+\State \Return $\mathit{levels}$
+\end{algorithmic}
+\end{algorithm}
 
-To visualize large graphs interactively, \msagljs{} builds a pyramid
-of tiles analogous to those used in online maps, served to the browser
-through the \texttt{TileLayer} of the \texttt{@deck.gl/geo-layers}
-package~\cite{deckglTileLayer}. Levels are numbered $0,1,\dots,Z$ from
-coarsest to finest; level~$0$ is a single tile covering the whole
-drawing with only a few top-ranking graph features,
-and the finest level~$Z$ corresponds to the full graph
-produced by the layout and the sleeve router of
-Section~\ref{sec:sleeve-routing}.
+
+\begin{figure}[!tb]
+  \centering
+  \resizebox{0.7\linewidth}{!}{%
+  \begin{tikzpicture}[
+      x={(1.0cm,0cm)},
+      y={(0.40cm,0.60cm)},
+      z={(0cm,1.0cm)},
+      line cap=round,
+    ]
+    \def\W{2.0}      %% slab half-width in cm; slab is square, span (-W,-W)..(W,W).
+    \def\dh{1.4}     %% vertical spacing between slabs
+    %% Pan center for the user's viewport on each slab (in slab cm).
+    %% At z=3, with this center the worked-example viewport intersects
+    %% exactly the 3x2 = 6 tiles required by the body text.
+    \def\cx{-0.25} \def\cy{0}
+    %% Screenshot is 1226x950 px. At view zoom v = z-1 (the integer zoom
+    %% that snaps to level z when v_0=-1), the viewport in world units is
+    %% (1226/2^v) x (950/2^v). With the slab's full width 2W = 4 cm
+    %% representing the W=1024 wu world, half-extents in cm are
+    %% hx = 1226/(512*2^v) and hy = 950/(512*2^v).
+    \pgfmathsetmacro{\iwfull}{2*\W}
+    %% Painter's order: bottom (z=4) up to top (z=0).
+    \foreach \zlev/\h/\img in {%
+        4/0/got_view_z4,%
+        3/1/got_view_z3,%
+        2/2/got_view_z2,%
+        1/3/got_view_z1,%
+        0/4/got_view_z0%
+      } {
+      \pgfmathtruncatemacro{\nn}{int(2^\zlev)}
+      \pgfmathsetmacro{\step}{2*\W/\nn}
+      \pgfmathsetmacro{\twov}{pow(2,\zlev-1)}
+      \pgfmathsetmacro{\hx}{1226/(512*\twov)}
+      \pgfmathsetmacro{\hy}{950/(512*\twov)}
+      %% Slab outline with a faint fill so the empty area is visibly empty.
+      \filldraw[fill=blue!4, draw=blue!55, line width=0.5pt]
+        (-\W,-\W,\h*\dh) -- (\W,-\W,\h*\dh) -- (\W,\W,\h*\dh) -- (-\W,\W,\h*\dh) -- cycle;
+      %% Place the LOD screenshot. Always render the screenshot at its
+      %% actual viewport size in slab cm, centered at the pan point. For
+      %% z<2 this rectangle exceeds the slab, but the slab clip leaves
+      %% only the world-content portion visible, which then exactly
+      %% fills the slab. For z>=2 the rectangle fits inside the slab,
+      %% leaving the rest visibly empty.
+      \pgfmathsetmacro{\iw}{2*\hx}
+      \pgfmathsetmacro{\ih}{2*\hy}
+      \pgfmathsetmacro{\vxa}{\cx-\hx}
+      \pgfmathsetmacro{\vya}{\cy-\hy}
+      \begin{scope}
+        \clip (-\W,-\W,\h*\dh) -- (\W,-\W,\h*\dh) -- (\W,\W,\h*\dh) -- (-\W,\W,\h*\dh) -- cycle;
+        \begin{scope}[shift={(\vxa,\vya,\h*\dh)}]
+          \pgflowlevelsynccm
+          \pgftransformcm{1}{0}{0.40}{0.60}{\pgfpointorigin}
+          \pgftext[base,left]
+            {\includegraphics[width=\iw cm, height=\ih cm]{\img}}
+        \end{scope}
+      \end{scope}
+      %% Faint tile grid: 2^z x 2^z square cells.
+      \ifnum\nn>1
+        \foreach \i in {1,...,\numexpr\nn-1\relax} {
+          \pgfmathsetmacro{\u}{-\W + \i*\step}
+          \draw[blue!50, line width=0.25pt] (\u,-\W,\h*\dh) -- (\u,\W,\h*\dh);
+          \draw[blue!50, line width=0.25pt] (-\W,\u,\h*\dh) -- (\W,\u,\h*\dh);
+        }
+      \fi
+      %% Worked example at z=3: outline the 3 x 2 = 6 tiles fetched at v=2.
+      \ifnum\zlev=3
+        \pgfmathsetmacro{\vxa}{\cx-\hx} \pgfmathsetmacro{\vxb}{\cx+\hx}
+        \pgfmathsetmacro{\vya}{\cy-\hy} \pgfmathsetmacro{\vyb}{\cy+\hy}
+        \pgfmathtruncatemacro{\ia}{floor((\vxa+\W)/\step)}
+        \pgfmathtruncatemacro{\ib}{floor((\vxb+\W)/\step)}
+        \pgfmathtruncatemacro{\ja}{floor((\vya+\W)/\step)}
+        \pgfmathtruncatemacro{\jb}{floor((\vyb+\W)/\step)}
+        \foreach \i in {\ia,...,\ib} {
+          \foreach \j in {\ja,...,\jb} {
+            \pgfmathsetmacro{\xa}{-\W + \i*\step}
+            \pgfmathsetmacro{\xb}{-\W + (\i+1)*\step}
+            \pgfmathsetmacro{\ya}{-\W + \j*\step}
+            \pgfmathsetmacro{\yb}{-\W + (\j+1)*\step}
+            \draw[orange!75!black, line width=0.7pt]
+              (\xa,\ya,\h*\dh) -- (\xb,\ya,\h*\dh) -- (\xb,\yb,\h*\dh) -- (\xa,\yb,\h*\dh) -- cycle;
+          }
+        }
+      \fi
+      %% Per-slab label on the front-left, where no slab above can occlude it.
+      \node[anchor=east, font=\scriptsize] at (-\W-0.05, -\W, \h*\dh)
+        {$z{=}\zlev$\,(\nn${\times}$\nn)};
+    }
+  \end{tikzpicture}}
+  \caption{The entities rendered on each level as the user zooms
+    in shown without scaling.}
+  \label{fig:tile-pyramid-3d}
+\end{figure}
 
 Conceptually, each tile is associated with a rectangular viewport and
-holds the graph elements that lie within it: the single tile at
-level~$0$ is associated with a viewport covering the entire drawing,
-so it contains the whole graph. When rendering, every level shows
-a subset of a rank-ordered prefix of the graph's nodes: candidates are
-processed in order of decreasing PageRank, and one is accepted only if
-it can be drawn at its natural size or larger without its padded
-bounding box overlapping any already-accepted node; otherwise it is
-skipped. Edges are inherited: an edge is shown only when both
-endpoints are accepted. Each tile then renders the part of the
-accepted set that lies within its viewport; the remaining elements are
-hidden. The per-tile capacity~$\mathcal{C}$
-only governs the choice of $Z$, that is, when to stop subdividing, and is not
-consulted when deciding what to render at each level: the selection of
-visible elements per level is driven entirely by importance and
-geometric non-overlap, Section~\ref{sec:filter}. Only the finest
-level~$Z$ displays every node and edge of the graph.
+holds some graph elements that lie within it: the single tile at
+level~$0$ is associated with a viewport equal to the graph bounding
+box. Every level keeps a prefix of rank-ordered graph's nodes the
+edges with both endpoints in the prefix.
 
-\emph{Per-tile rendering load.} At the finest level, condition~(i) is
-intended to cap each tile at $\mathcal{C}$ elements, nodes
-plus edge clips, with default $\mathcal{C}=500$. On dense graphs, however,
-either the depth cap $Z_{\max}=8$ or the minimum tile size~(ii) binds
-first, in which case the densest finest-level tile may hold many more
-than $\mathcal{C}$ elements. For a coarser level~$z<Z$ we ignore
-$\mathcal{C}$ when preparing a tile for rendering. We apply semantic zoom on the nodes, as detailed in Section~\ref{sec:filter}, by inflating each
-surviving node by roughly $2^{Z-z}$ in linear size. The chosen nodes
-define the rendered edges: we render the edges connecting two chosen
-nodes. Table~\ref{tab:max-per-tile} reports the
-empirical worst-case per-tile element count on a range of graphs.
+\paragraph{How the index of the finest layer, $Z$, is chosen.}
+We treat the tiles differently when calculating $Z$ and when preparing
+for rendering. There is no element filtering in the former case: the
+top tile contains all elements of the graph, and when we split a tile
+we do not `lose` any elements. We continue increasing $Z$ generating
+new levels until a stopping conditions is met. Then, while keeping the
+finest level intact, we clean up the tiles of lelels $0, ..., Z-1$ and
+populate them for rendering.
 
-\paragraph{How $Z$ is chosen.} $Z$ is determined incrementally rather
-than fixed in advance. We initialize $Z=0$ with the single root tile
-covering the whole drawing. While the tiles at level~$Z$ violate
+We start from $Z=0$, and while the tiles at level~$Z$ violate
 conditions~(i)~or~(ii) below, we increase $Z$ by one and split every
 tile of the previous finest level into four equal sub-tiles. The two
 conditions are: (i)~every tile contains at most~$\mathcal{C}$
-elements, with default $\mathcal{C}=500$, preventing overloaded tiles; and
-(ii)~the tile width and height are both below ten times the average
-node width and height, preventing tiles smaller than the nodes they
-display. We additionally enforce a hard cap $Z \le Z_{\max}$ derived from a
-memory estimate. At level~$z$ the pyramid has a $2^{z}\times 2^{z}$
-grid of tiles, so the finest grid resolution is $K = 2^{Z}$. Across
-the whole pyramid we estimate the total number of stored tile elements
-as
+elements, with default $\mathcal{C}=500$; and (ii)~the tile width and
+height are both below ten times the average node width and height. We
+additionally enforce a hard cap $Z \le Z_{\max}$ derived from a memory
+estimate. At level~$z$ the pyramid has a $K = 2^{z}\times 2^{z}$
+tiles. Across the whole pyramid we estimate the total number of stored
+tile elements as
 \[
 T(K) \;\approx\; 2\,\bigl((K/4)\,M + N\bigr),
 \]
@@ -276,32 +358,18 @@ Section~\ref{sec:filter}; (2)~reroute the edges of $G_z$ around
 these obstacles, which may now be enlarged,
 Section~\ref{sec:level-reroute}; (3)~recompute the per-tile edge
 clips at level~$z$ by splitting the new curves at tile boundaries,
-Section~\ref{sec:tile-build}. Figure~\ref{fig:tile-pyramid} on the
-first page shows two adjacent pyramid levels built by this procedure.
+Section~\ref{sec:tile-build}. Figure~\ref{fig:tile-pyramid} shows two
+adjacent pyramid levels built by this procedure.
 Algorithm~\ref{alg:build-pyramid} summarizes the whole pipeline.
 
-\begin{algorithm}[t]
-\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathit{minTileSize})$}
-\label{alg:build-pyramid}
-\begin{algorithmic}[1]
-\State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
-\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$
-\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements \textbf{and} its width/height $\ge \mathit{minTileSize}$}
-  \State $\mathit{levels}[z{+}1] \gets$ split every tile of $\mathit{levels}[z]$ into four sub-tiles
-  \State within each parent, distribute nodes/labels/arrowheads by bbox, and split each edge clip at the tile midlines (Section~\ref{sec:tile-build})
-  \State $z \gets z + 1$
-\EndWhile
-\State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
-\State compute $\mathrm{PageRank}(G)$
-\For{$z = Z-1$ \textbf{down to} $0$}
-  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
-  \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
-  \State reroute every edge $e\in E_z$ on this CDT, using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
-  \State for every tile $t$ at level $z$, recompute the clips of $e$ inside $t$ from the new curve, splitting at tile midlines
-\EndFor
-\State \Return $\mathit{levels}$
-\end{algorithmic}
-\end{algorithm}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.48\textwidth]{tile_pyramid_coarse.pdf}\hfill
+  \includegraphics[width=0.48\textwidth]{tile_pyramid_fine.pdf}
+  \caption{Two adjacent pyramid levels are shown, cropped to the same window; the coarser level is on the left, the finer one on the right. For each level a new graph is assembled from a PageRank-ranked subset of the nodes.}
+  \label{fig:tile-pyramid}
+\end{figure}
+
 
 \subsection{PageRank-Guided Level Construction}
 \label{sec:filter}
@@ -517,98 +585,6 @@ The implementation also offers an optional pass that fits a Bezier segment into 
 The WebGL renderer uses deck.gl~\cite{deckgl}, a GPU-accelerated framework for large-scale data visualization. The renderer sets up an \texttt{OrthographicView}, with no perspective distortion, and a \texttt{TileLayer} that dynamically loads tile data based on the current viewport. Because deck.gl's \texttt{TileLayer} expects a power-of-two pyramid of 512-pixel tiles, the root tile size is rounded up to the nearest power of two and a \emph{start zoom} level is computed so that the root tile maps to deck.gl's 512-pixel tile size. The \texttt{TileLayer}'s \texttt{getTileData} callback then translates deck.gl tile coordinates $(x, y, z)$ to \msagljs{} tile map coordinates, fetching the precomputed tile data.
 
 In deck.gl's \texttt{OrthographicView} the screen scale at view zoom~$v$ is $s = 2^{v}$ pixels per world unit, and the start zoom is $v_0 = \log_2(512/W)$, so that at $v = v_0$ the root tile of width~$W$ projects to $512$~pixels. The \texttt{TileLayer} then requests pyramid level $z = \lfloor v - v_0 \rfloor$, at which each tile covers $W/2^{z}$ world units and renders at about $512$~pixels. Note $v_0$ lives in the same view-zoom space as $v$ and is not a pyramid level: when the bounding box is bigger than one $512$-pixel tile, $v_0$ is negative. For example, with a bounding box of $1000\times 800$ world units rounded up to $W = 1024$ we get $v_0 = -1$; at $v = 2$ the scale is $s = 4$~px/wu, the chosen level is $z = 3$, and each level-$3$ tile spans $128$~wu. A $1280\times 800$-pixel viewport then covers $320\times 200$~wu and intersects $\lceil 320/128 \rceil \times \lceil 200/128 \rceil = 3\times 2 = 6$ level-$3$ tiles, the only ones fetched (Figure~\ref{fig:tile-pyramid-3d}). Between integer view zooms the level is held fixed and the tiles are GPU-scaled, so continuous panning and zooming never block on routing or rerouting.
-
-\begin{figure}[!tb]
-  \centering
-  \resizebox{0.7\linewidth}{!}{%
-  \begin{tikzpicture}[
-      x={(1.0cm,0cm)},
-      y={(0.40cm,0.60cm)},
-      z={(0cm,1.0cm)},
-      line cap=round,
-    ]
-    \def\W{2.0}      %% slab half-width in cm; slab is square, span (-W,-W)..(W,W).
-    \def\dh{1.4}     %% vertical spacing between slabs
-    %% Pan center for the user's viewport on each slab (in slab cm).
-    %% At z=3, with this center the worked-example viewport intersects
-    %% exactly the 3x2 = 6 tiles required by the body text.
-    \def\cx{-0.25} \def\cy{0}
-    %% Screenshot is 1226x950 px. At view zoom v = z-1 (the integer zoom
-    %% that snaps to level z when v_0=-1), the viewport in world units is
-    %% (1226/2^v) x (950/2^v). With the slab's full width 2W = 4 cm
-    %% representing the W=1024 wu world, half-extents in cm are
-    %% hx = 1226/(512*2^v) and hy = 950/(512*2^v).
-    \pgfmathsetmacro{\iwfull}{2*\W}
-    %% Painter's order: bottom (z=4) up to top (z=0).
-    \foreach \zlev/\h/\img in {%
-        4/0/got_view_z4,%
-        3/1/got_view_z3,%
-        2/2/got_view_z2,%
-        1/3/got_view_z1,%
-        0/4/got_view_z0%
-      } {
-      \pgfmathtruncatemacro{\nn}{int(2^\zlev)}
-      \pgfmathsetmacro{\step}{2*\W/\nn}
-      \pgfmathsetmacro{\twov}{pow(2,\zlev-1)}
-      \pgfmathsetmacro{\hx}{1226/(512*\twov)}
-      \pgfmathsetmacro{\hy}{950/(512*\twov)}
-      %% Slab outline with a faint fill so the empty area is visibly empty.
-      \filldraw[fill=blue!4, draw=blue!55, line width=0.5pt]
-        (-\W,-\W,\h*\dh) -- (\W,-\W,\h*\dh) -- (\W,\W,\h*\dh) -- (-\W,\W,\h*\dh) -- cycle;
-      %% Place the LOD screenshot. Always render the screenshot at its
-      %% actual viewport size in slab cm, centered at the pan point. For
-      %% z<2 this rectangle exceeds the slab, but the slab clip leaves
-      %% only the world-content portion visible, which then exactly
-      %% fills the slab. For z>=2 the rectangle fits inside the slab,
-      %% leaving the rest visibly empty.
-      \pgfmathsetmacro{\iw}{2*\hx}
-      \pgfmathsetmacro{\ih}{2*\hy}
-      \pgfmathsetmacro{\vxa}{\cx-\hx}
-      \pgfmathsetmacro{\vya}{\cy-\hy}
-      \begin{scope}
-        \clip (-\W,-\W,\h*\dh) -- (\W,-\W,\h*\dh) -- (\W,\W,\h*\dh) -- (-\W,\W,\h*\dh) -- cycle;
-        \begin{scope}[shift={(\vxa,\vya,\h*\dh)}]
-          \pgflowlevelsynccm
-          \pgftransformcm{1}{0}{0.40}{0.60}{\pgfpointorigin}
-          \pgftext[base,left]
-            {\includegraphics[width=\iw cm, height=\ih cm]{\img}}
-        \end{scope}
-      \end{scope}
-      %% Faint tile grid: 2^z x 2^z square cells.
-      \ifnum\nn>1
-        \foreach \i in {1,...,\numexpr\nn-1\relax} {
-          \pgfmathsetmacro{\u}{-\W + \i*\step}
-          \draw[blue!50, line width=0.25pt] (\u,-\W,\h*\dh) -- (\u,\W,\h*\dh);
-          \draw[blue!50, line width=0.25pt] (-\W,\u,\h*\dh) -- (\W,\u,\h*\dh);
-        }
-      \fi
-      %% Worked example at z=3: outline the 3 x 2 = 6 tiles fetched at v=2.
-      \ifnum\zlev=3
-        \pgfmathsetmacro{\vxa}{\cx-\hx} \pgfmathsetmacro{\vxb}{\cx+\hx}
-        \pgfmathsetmacro{\vya}{\cy-\hy} \pgfmathsetmacro{\vyb}{\cy+\hy}
-        \pgfmathtruncatemacro{\ia}{floor((\vxa+\W)/\step)}
-        \pgfmathtruncatemacro{\ib}{floor((\vxb+\W)/\step)}
-        \pgfmathtruncatemacro{\ja}{floor((\vya+\W)/\step)}
-        \pgfmathtruncatemacro{\jb}{floor((\vyb+\W)/\step)}
-        \foreach \i in {\ia,...,\ib} {
-          \foreach \j in {\ja,...,\jb} {
-            \pgfmathsetmacro{\xa}{-\W + \i*\step}
-            \pgfmathsetmacro{\xb}{-\W + (\i+1)*\step}
-            \pgfmathsetmacro{\ya}{-\W + \j*\step}
-            \pgfmathsetmacro{\yb}{-\W + (\j+1)*\step}
-            \draw[orange!75!black, line width=0.7pt]
-              (\xa,\ya,\h*\dh) -- (\xb,\ya,\h*\dh) -- (\xb,\yb,\h*\dh) -- (\xa,\yb,\h*\dh) -- cycle;
-          }
-        }
-      \fi
-      %% Per-slab label on the front-left, where no slab above can occlude it.
-      \node[anchor=east, font=\scriptsize] at (-\W-0.05, -\W, \h*\dh)
-        {$z{=}\zlev$\,(\nn${\times}$\nn)};
-    }
-  \end{tikzpicture}}
-  \caption{The entities rendered on each level as the user zooms in.}
-  \label{fig:tile-pyramid-3d}
-\end{figure}
 
 \paragraph{Rendering layers.}
 Each tile is rendered as a composite deck.gl layer containing:
