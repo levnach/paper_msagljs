@@ -364,41 +364,48 @@ whole pipeline.
 \subsection{PageRank-Guided Level Construction}
 \label{sec:filter}
 Before filling the level's tiles for rendering we run
-PageRank~\cite{page1999pagerank} on~$G$ once, and sort all nodes by
-descending PageRank.
+PageRank~\cite{page1999pagerank} on~$G$ once, and sort all nodes of
+the graph, $V$, by descending rank. Write $k = Z - z$ for the
+level's depth below the finest level. The candidates for level of
+depth $k$ are the nodes of the \emph{prefix} of the sorted array of
+length $\lceil |V|/2^k\rceil$.
 
-For level $0 \le z < Z$ we form a new graph $G_z$ as follows. Let
-$T_z$ be the prefix of length $\lceil |V|/2^{Z-z}\rceil$ of the
-PageRank-sorted node array, and let $S_z = 2^{Z-z}$ be the per-level
-display-scale cap.
-We process $T_z$ in rank-descending order. Each
-candidate~$v$ is assigned the largest scale~$s_v\le S_z$ at which its
-padded bounding box, scaled about $v$'s center, stays disjoint from
-the padded boxes of all already-accepted nodes; the padding absorbs
-the sleeve router's obstacle inflation and leaves a visible gap
-after triangulation. Disjointness is an axis-aligned separating-axis
-test, so the largest admissible scale~$s^\star(v)$ is obtained in
-closed form. If $s^\star(v)\ge 1$ the candidate is accepted at
-$s_v=\min(\sigma, s^\star(v))$, where the running cap~$\sigma$,
-initially $S_z$, is then tightened to~$s_v$ so that no later,
-lower-ranked node is drawn larger than an already-accepted senior;
-otherwise the candidate is dropped. The accepted set is~$V_z$ and the
-per-node scales $\{s_v^{(z)}\}$ are stored. The result is a map-like
-effect: a few large landmarks at coarse zooms, progressively more
-detail as the user zooms in.
+Node positions are inherited from the original layout and never move:
+across levels we change only each node's display size. 
 
-To avoid testing every candidate against every previously accepted
-box, accepted boxes are maintained in a uniform spatial hash whose
-cell size is an upper bound on the inflated box dimension at the
-current level. Two boxes can overlap only if their center cells are
-within one step on each axis, so each candidate consults at most nine
-cells. On the layouts we tested the expected work per candidate
-is~$O(1)$, giving an overall expected cost of $O(|T_z|\log|T_z|)$
-dominated by the initial sort; the worst case, when many boxes pile
-into a single cell, degrades to $O(|T_z|\cdot|V_z|)$. In our
-experiments this phase was never a bottleneck: the per-level rerouting
-of Section~\ref{sec:level-reroute} dominates the build time at every
-level we measured.
+We add nodes to a level of depth $k$ by walking the level's prefix in
+rank-descending order. The top-ranked node is scaled by $2^k$. We keep
+the node scales non-increasing, but as large as possible, while
+making sure that each next node does not overlap the previously
+selected nodes. If even at its original size the candidate's bounding
+box would overlap an already-accepted node's scaled box, the candidate
+is dropped.
+
+Dropping a relatively high-ranked candidate at a coarse level is less
+disruptive than it sounds. Consider Arya's node in the \emph{Game of
+Thrones} graph: as Figure~\ref{fig:tile-pyramid-3d} shows, it is
+dropped from the top layer because a higher-ranked node, Tyrion,
+has covered the available region. The user still sees that part of
+the graph as occupied, and Arya's individual node appears at a finer
+level where its box fits.
+
+\paragraph{Spatial-hash overlap test.}
+A naive overlap test against every previously accepted node would
+dominate the cost of the filter. We instead maintain the accepted
+boxes in a uniform spatial hash whose cell size is chosen so that any
+accepted box, and any candidate's box at the level's maximum scale,
+both fit inside one cell on each axis. Because of this choice, two
+such boxes can overlap only if their center cells differ by at most
+one step on each axis: testing a candidate therefore reduces to
+scanning the accepted boxes registered in the candidate's own cell
+and in the eight cells immediately around it.
+On the layouts we tested the expected work per candidate is constant,
+so the overall cost is dominated by the initial sort by PageRank.
+In pathological cases where many accepted boxes pile into a single
+cell the test degrades gracefully to the naive scan. In our
+experiments this phase was never a bottleneck: the per-level
+rerouting of Section~\ref{sec:level-reroute} dominates the build time
+at every level we measured.
 
 \subsection{Stable Per-Level Rerouting with a Routing Hint}
 \label{sec:level-reroute}
