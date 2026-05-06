@@ -185,18 +185,33 @@ is the finest, and level~$0$ is the coarsest. Each level is a
 collection of tiles indexed by integer $(x,y)$ grid coordinates. The
 output is consumed by the \texttt{TileLayer} of the
 \texttt{@deck.gl/geo-layers} package~\cite{deckglTileLayer}.
+
+A tile is a rectangular viewport together with its \emph{tile data}:
+nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge
+clip is a curve confined to the tile rectangle, paired with the
+non-empty list of graph edges whose routes coincide with that curve
+inside the tile. Bundles capture the stretches on which several
+routes travel tight together inside a common sleeve; representing
+each such stretch as a single clip with an attached edge list, rather
+than as one clip per edge, lowers each tile's element count and the
+number of draw calls at render time, and avoids the extra
+subdivisions that an inflated count would otherwise trigger.
+
 Pseudocode~\ref{alg:build-pyramid} describes the algorithm building
 the tile pyramid.
 \begin{algorithm}[t]
-\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathit{minTileSize})$}
+\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathit{minTileSize}, \mathcal{M}_{\max})$}
 \label{alg:build-pyramid}
 \begin{algorithmic}[1]
 \State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
-\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$
+\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$;\quad $\mathit{used} \gets |T_0|$ \Comment{$|T|$ = element count of tile $T$, summed over all built levels}
 \While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements \textbf{and} its width/height $\ge \mathit{minTileSize}$}
-  \State $\mathit{levels}[z{+}1] \gets$ split every tile of $\mathit{levels}[z]$ into four sub-tiles
+  \State $\mathit{next} \gets$ split every tile of $\mathit{levels}[z]$ into four sub-tiles
   \State within each parent, distribute nodes/labels/arrowheads by bbox, and split each edge clip at the tile midlines (Section~\ref{sec:tile-build})
-  \State $z \gets z + 1$
+  \If{$200\cdot(\mathit{used} + |\mathit{next}|) > \mathcal{M}_{\max}$}
+    \State \textbf{discard} $\mathit{next}$; \textbf{break} \Comment{memory budget reached; check is incremental during the split}
+  \EndIf
+  \State $\mathit{levels}[z{+}1] \gets \mathit{next}$;\quad $\mathit{used} \mathrel{+}= |\mathit{next}|$;\quad $z \gets z + 1$
 \EndWhile
 \State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
 \State compute $\mathrm{PageRank}(G)$
@@ -304,21 +319,19 @@ the tile pyramid.
   \label{fig:tile-pyramid-3d}
 \end{figure}
 
-Conceptually, each tile is associated with a rectangular viewport and
-holds some graph elements that lie within it: the single tile at
-level~$0$ is associated with a viewport equal to the graph bounding
-box. Each coarser level keeps a prefix of the PageRank-ordered nodes
-together with all edges whose endpoints both lie in that prefix; the
-finest level keeps the full node and edge sets.
+The single tile at level~$0$ has a rectangle equal to the graph
+bounding box. Each coarser level keeps a prefix of the
+PageRank-ordered nodes together with all edges whose endpoints both
+lie in that prefix; the finest level keeps the full node and edge
+sets.
 
 \paragraph{How the index of the finest layer, $Z$, is chosen.}
 We treat the tiles differently when calculating $Z$ and when preparing
-for rendering. There is no element filtering in the former case: the
-top tile contains all elements of the graph, and when we split a tile
-we do not ``lose'' any elements. We continue increasing $Z$,
-generating new levels, until a stopping condition is met. Then, while
-keeping the finest level intact, we rebuild the tiles of
-levels~$0, \ldots, Z-1$ for rendering.
+for rendering. There is no element filtering in the former case: all
+graph entities are represented in each level. We continue increasing
+$Z$, generating new levels, and split tiles, until a stopping
+condition is met. Then, while keeping the finest level intact, we
+rebuild the tiles of levels~$0, \ldots, Z-1$ for rendering.
 
 We start from $Z=0$ and grow the pyramid one level at a time. We
 stop as soon as any of three conditions is met:
@@ -397,15 +410,19 @@ accepted box, and any candidate's box at the level's maximum scale,
 both fit inside one cell on each axis. Because of this choice, two
 such boxes can overlap only if their center cells differ by at most
 one step on each axis: testing a candidate therefore reduces to
-scanning the accepted boxes registered in the candidate's own cell
-and in the eight cells immediately around it.
-On the layouts we tested the expected work per candidate is constant,
-so the overall cost is dominated by the initial sort by PageRank.
-In pathological cases where many accepted boxes pile into a single
-cell the test degrades gracefully to the naive scan. In our
-experiments this phase was never a bottleneck: the per-level
-rerouting of Section~\ref{sec:level-reroute} dominates the build time
-at every level we measured.
+scanning the accepted boxes registered in the candidate's own cell and
+in the eight cells immediately around it.
+
+The hash brings little benefit at the coarsest levels, where the
+prefix is short and even a naive scan over the few accepted boxes is
+cheap; it pays off at finer levels, where the prefix grows
+geometrically and a per-candidate constant-time test replaces a linear
+scan over hundreds of already-accepted boxes.  On the layouts we
+tested the expected work per candidate is constant, so the overall
+cost is dominated by the initial sort by PageRank.  In our experiments
+this phase was never a bottleneck: the per-level rerouting of
+Section~\ref{sec:level-reroute} dominates the build time at every
+level we measured.
 
 \subsection{Stable Per-Level Rerouting with a Routing Hint}
 \label{sec:level-reroute}
@@ -437,9 +454,9 @@ paper do not have subgraphs.
 \subsection{Splitting Edges between Tiles}
 \label{sec:tile-build}
 
-Once each level $G_z$ has its final geometry, we cut that level into tiles. A tile is a pair $(\mathit{rect}, \mathit{tiledata})$, where $\mathit{tiledata}$ is a set of \emph{tile elements}: nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge clip is a pair $(e, p)$, with $p$ a continuous piece of the edge curve $c_e$ confined to $\mathit{rect}$.
+Once each level $G_z$ has its final geometry, we cut that level into the tiles defined at the start of Section~\ref{sec:tiling}; we write $(\mathit{rect}, \mathit{tiledata})$ for a tile, with $\mathit{rect}$ its rectangle. Two edge clips inside the same tile are merged whenever their curves coincide on the tile's interior, with the second clip's edge list appended to the first's; the implementation detects coincidence by snapping each clip's tile-entry and tile-exit points to the layout tolerance and matching the resulting endpoint pairs. Because the sleeve router is deterministic, parallel edges sharing endpoints route along the same curve, so the merger is exact in the dense-supernode case it is most needed for.
 
-The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines into sub-clips confined to individual sub-tiles. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~the union of all clips for edge~$e$ inside a tile equals $c_e \cap \mathit{rect}$. Part~(a) makes subdivision cheap and local: thanks to~(a) we never need to clip against the four outer sides of a tile, only against its two midlines. For the default polyline edges produced by the sleeve router this is trivial---each segment meets each midline at most once---so a clip is split by walking its segments and cutting at the midline crossings. The optional Bezier-corner pass of Section~\ref{sec:collapse} replaces these line--line intersections with curve--line ones plus a parameter sort, but obeys the same invariant. Part~(b) is the rendering-correctness condition: at any zoom only the tiles intersecting the viewport are fetched and their clips drawn, and (b) guarantees that the union of what is drawn equals $c_e\cap\text{viewport}$ for every visible edge~$e$. The same invariant makes the rerouting of Section~\ref{sec:level-reroute} compatible with tiling: whenever an edge curve is replaced by a coarser-level route, (b) is reestablished by recomputing the affected clips.
+The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines into sub-clips confined to individual sub-tiles, each sub-clip inheriting the parent's edge list. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~for every edge~$e$, the union of all clips whose edge list contains $e$ inside a tile equals $c_e \cap \mathit{rect}$. Part~(a) makes subdivision cheap and local: thanks to~(a) we never need to clip against the four outer sides of a tile, only against its two midlines. For the default polyline edges produced by the sleeve router this is trivial---each segment meets each midline at most once---so a clip is split by walking its segments and cutting at the midline crossings. The optional Bezier-corner pass of Section~\ref{sec:collapse} replaces these line--line intersections with curve--line ones plus a parameter sort, but obeys the same invariant. Part~(b) is the rendering-correctness condition: at any zoom only the tiles intersecting the viewport are fetched and their clips drawn, and (b) guarantees that the union of what is drawn equals $c_e\cap\text{viewport}$ for every visible edge~$e$. The same invariant makes the rerouting of Section~\ref{sec:level-reroute} compatible with tiling: whenever an edge curve is replaced by a coarser-level route, (b) is reestablished by recomputing the affected clips.
 
 Subdivision of a level stops as soon as either of the following holds: (i)~every tile at that level already contains at most \capac{} elements; or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively. These are the same conditions that determine $Z$ (Algorithm~\ref{alg:build-pyramid}).
 
@@ -622,7 +639,8 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     sleeve-search phases of Section~\ref{sec:sleeve} on the full graph;
     \emph{Tiling} is the build of the tile pyramid (capacity $\mathcal{C}=500$,
     $Z_{\max}=8$) of Section~\ref{sec:tiling}, which includes the per-level
-    rerouting; \emph{Total} adds parsing.}
+    rerouting; \emph{Total} is the total loading time including
+    parsing of the graph file, graph layout, and all other stages.}
   \label{tab:perf}
 \end{table}
 
