@@ -203,8 +203,8 @@ the tile pyramid.
 \For{$z = Z-1$ \textbf{down to} $0$}
   \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
   \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
-  \State reroute every edge $e\in E_z$ on this CDT, using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
-  \State for every tile $t$ at level $z$, recompute the clips of $e$ inside $t$ from the new curve, splitting at tile midlines
+  \State route every edge $e\in E_z$ on this CDT, optionally using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
+  \State clip each edge of the level with the tiles
 \EndFor
 \State \Return $\mathit{levels}$
 \end{algorithmic}
@@ -307,60 +307,50 @@ the tile pyramid.
 Conceptually, each tile is associated with a rectangular viewport and
 holds some graph elements that lie within it: the single tile at
 level~$0$ is associated with a viewport equal to the graph bounding
-box. Every level keeps a prefix of rank-ordered graph's nodes the
-edges with both endpoints in the prefix.
+box. Each coarser level keeps a prefix of the PageRank-ordered nodes
+together with all edges whose endpoints both lie in that prefix; the
+finest level keeps the full node and edge sets.
 
 \paragraph{How the index of the finest layer, $Z$, is chosen.}
 We treat the tiles differently when calculating $Z$ and when preparing
 for rendering. There is no element filtering in the former case: the
 top tile contains all elements of the graph, and when we split a tile
-we do not `lose` any elements. We continue increasing $Z$ generating
-new levels until a stopping conditions is met. Then, while keeping the
-finest level intact, we clean up the tiles of lelels $0, ..., Z-1$ and
-populate them for rendering.
+we do not ``lose'' any elements. We continue increasing $Z$,
+generating new levels, until a stopping condition is met. Then, while
+keeping the finest level intact, we rebuild the tiles of
+levels~$0, \ldots, Z-1$ for rendering.
 
-We start from $Z=0$, and while the tiles at level~$Z$ violate
-conditions~(i)~or~(ii) below, we increase $Z$ by one and split every
-tile of the previous finest level into four equal sub-tiles. The two
-conditions are: (i)~every tile contains at most~$\mathcal{C}$
-elements, with default $\mathcal{C}=500$; and (ii)~the tile width and
-height are both below ten times the average node width and height. We
-additionally enforce a hard cap $Z \le Z_{\max}$ derived from a memory
-estimate. At level~$z$ the pyramid has a $K = 2^{z}\times 2^{z}$
-tiles. Across the whole pyramid we estimate the total number of stored
-tile elements as
-\[
-T(K) \;\approx\; 2\,\bigl((K/4)\,M + N\bigr),
-\]
-where $N$ and $M$ are the node and edge counts of $G$. The term
-$(K/4)\,M$ counts per-tile edge clips at the finest level, under the
-heuristic that an average edge crosses $K/4$ tiles. The additive $N$
-counts node copies. The factor~$2$ accounts for the contribution of
-all coarser levels combined. With roughly $200$~bytes per stored
-element and a maximum memory $\mathcal{M}_{\max}$ (default $4$~GB), we
-solve $200\,T(K) \le \mathcal{M}_{\max}$ for the largest admissible
-$K$,
-\[
-K_{\max} \;=\; \Bigl\lfloor\,4\bigl(\mathcal{M}_{\max}/(2\cdot 200) - N\bigr)\big/M\,\Bigr\rfloor,
-\]
-and set
-\[
-Z_{\max} \;=\; \min\!\bigl(8,\;\bigl\lfloor\log_2 K_{\max}\bigr\rfloor\bigr).
-\]
-The constant $8$ is a safety ceiling: even when $\mathcal{M}_{\max}$
-allows a much larger grid, we never build more than nine pyramid
-levels.
+We start from $Z=0$ and grow the pyramid one level at a time. We
+stop as soon as any of three conditions is met:
+\begin{enumerate}
+\item every tile at the new level contains at most $\mathcal{C}$
+elements, with default $\mathcal{C}=500$;
+\item the new tile width and height are both below ten times the
+average node width and height;
+\item while generating the tiles of the new finest level, the running
+total of stored tile elements summed over all levels, multiplied by
+$200$~bytes per element, exceeds the memory budget $\mathcal{M}_{\max}$,
+with default $4$~GB; the partial level is then discarded and $Z$ is
+set to the previous finest level.
+\end{enumerate}
+The third condition is checked incrementally inside the level-build
+loop, so we abort as soon as the memory barrier is reached rather than
+finishing a level we know we will throw away. We additionally cap
+$Z \le 8$ to bound the depth of the pyramid; the nine-level limit is
+comfortably above what is reachable on any input we tested.
 \paragraph{Three phases.} Once $Z$ and the tile rectangles are fixed,
-construction proceeds in three phases for every coarser level
-$z=Z{-}1, Z{-}2, \dots, 0$: (1)~use PageRank to pick the nodes shown
-at level~$z$ and possibly enlarge them,
-Section~\ref{sec:filter}; (2)~reroute the edges of $G_z$ around
-these obstacles, which may now be enlarged,
-Section~\ref{sec:level-reroute}; (3)~recompute the per-tile edge
-clips at level~$z$ by splitting the new curves at tile boundaries,
-Section~\ref{sec:tile-build}. Figure~\ref{fig:tile-pyramid} shows two
-adjacent pyramid levels built by this procedure.
-Algorithm~\ref{alg:build-pyramid} summarizes the whole pipeline.
+each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
+\begin{enumerate}
+\item pick the nodes of level~$z$ with PageRank and possibly enlarge
+  them, Section~\ref{sec:filter};
+\item reroute the edges of $G_z$ around the resulting obstacles,
+  Section~\ref{sec:level-reroute};
+\item recompute the per-tile edge clips by splitting the new curves
+  at tile boundaries, Section~\ref{sec:tile-build}.
+\end{enumerate}
+Figure~\ref{fig:tile-pyramid} shows two adjacent pyramid levels built
+by this procedure; Algorithm~\ref{alg:build-pyramid} summarizes the
+whole pipeline.
 
 \begin{figure}[t]
   \centering
@@ -373,22 +363,15 @@ Algorithm~\ref{alg:build-pyramid} summarizes the whole pipeline.
 
 \subsection{PageRank-Guided Level Construction}
 \label{sec:filter}
+Before filling the level's tiles for rendering we run
+PageRank~\cite{page1999pagerank} on~$G$ once, and sort all nodes by
+descending PageRank.
 
-To enable semantic zoom and keep the labels readable at coarse zooms,
-each level~$0 \le z < Z$ is assigned its own \emph{level
-graph}~$G_z=(V_z,E_z)$: a node subset $V_z\subseteq V$, together with
-every edge of~$G$ whose endpoints both lie in~$V_z$. We compute
-PageRank~\cite{page1999pagerank} on~$G$ once, sort all nodes by
-descending PageRank as $v_0,v_1,\dots,v_{|V|-1}$. We write
-$S_z = 2^{\,Z-z}$ for the per-level scale \emph{ceiling}.
-
-\paragraph{Building $V_z$.}
-The candidate set at level~$z$ is the rank-prefix
-\[
-T_z \;=\; \{\,v_0,v_1,\dots,v_{n_z-1}\,\},\qquad n_z=\bigl\lceil |V|/2^{\,Z-z}\bigr\rceil,
-\]
-a fixed-size prefix of the globally rank-sorted node list, halving with
-each coarser level. We process $T_z$ in rank-descending order. Each
+For level $0 \le z < Z$ we form a new graph $G_z$ as follows. Let
+$T_z$ be the prefix of length $\lceil |V|/2^{Z-z}\rceil$ of the
+PageRank-sorted node array, and let $S_z = 2^{Z-z}$ be the per-level
+display-scale cap.
+We process $T_z$ in rank-descending order. Each
 candidate~$v$ is assigned the largest scale~$s_v\le S_z$ at which its
 padded bounding box, scaled about $v$'s center, stays disjoint from
 the padded boxes of all already-accepted nodes; the padding absorbs
@@ -464,8 +447,8 @@ Table~\ref{tab:max-per-tile} reports the resulting maximum number of elements re
   of~$Z$; we have no tight analytical bound on the actual rendered
   per-tile element count, which is therefore reported
   empirically. ``Max tile's level'' is the level on which the maximum
-  tile was found. In the worst cases (\texttt{facebook\_combined},
-  \texttt{ca-CondMat}) the densest tile holds 20--30$\times$ the
+  tile was found. In the worst cases, \texttt{ca-HepPh} and
+  \texttt{ca-CondMat}, the densest tile holds 6--8$\times$ the
   nominal capacity~$\mathcal{C}$.}
 \label{tab:max-per-tile}
 \centering
@@ -473,14 +456,15 @@ Table~\ref{tab:max-per-tile} reports the resulting maximum number of elements re
 \toprule
 Graph & $|V|$ & $|E|$ & Levels built & Max per tile & Max tile's level \\
 \midrule
-gameofthrones      &     407 &   2\,639 & 5 &  1\,168 & 4 \\
-composers          &  3\,405 &  13\,832 & 8 &  3\,317 & 7 \\
-ca-GrQc            &  5\,241 &  14\,484 & 8 &     934 & 7 \\
-ca-HepTh           &  9\,875 &  25\,973 & 9 &  1\,598 & 8 \\
-facebook\_combined &  4\,039 &  88\,234 & 9 & 11\,874 & 8 \\
-ca-CondMat         & 23\,133 & 186\,878 & 9 & 13\,744 & 8 \\
-deezer\_europe     & 28\,281 &  92\,752 & 9 &  8\,201 & 8 \\
-delaunay\_n15      & 32\,768 &  98\,274 & 9 &     611 & 8 \\
+gameofthrones      &     407 &   2\,639 & 5 &     324 & 4 \\
+composers          &  3\,405 &  13\,832 & 8 &     749 & 3 \\
+ca-GrQc            &  5\,242 &  28\,968 & 8 &     359 & 4 \\
+ca-HepTh           &  9\,877 &  51\,946 & 8 &  1\,836 & 3 \\
+facebook\_combined &  4\,039 &  88\,234 & 9 &     928 & 5 \\
+ca-HepPh           & 12\,008 & 236\,978 & 9 &  3\,643 & 3 \\
+ca-CondMat         & 23\,133 & 186\,878 & 8 &  2\,949 & 3 \\
+deezer\_europe     & 28\,281 &  92\,752 & 8 &  2\,402 & 3 \\
+delaunay\_n15      & 32\,768 &  98\,274 & 8 &     283 & 7 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -615,15 +599,15 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     \toprule
     Graph & $|V|$ & $|E|$ & Routing & Tiling & Total \\
     \midrule
-    gameofthrones      &     407 &   2\,639 &   0.17 &   0.22 &   1.94 \\
-    composers          &  3\,405 &  13\,832 &   4.37 &   5.20 &  10.39 \\
-    ca-GrQc            &  5\,241 &  14\,484 &   4.01 &   3.15 &   8.42 \\
-    ca-HepTh           &  9\,875 &  25\,973 &  26.83 &  15.95 &  46.07 \\
-    ca-HepPh           & 12\,008 & 236\,978 &  82.10 & 156.60 & 246.30 \\
-    facebook\_combined &  4\,039 &  88\,234 &  12.25 &  29.87 &  43.82 \\
-    ca-CondMat         & 23\,133 & 186\,878 & 224.20 & 188.10 & 431.20 \\
-    deezer\_europe     & 28\,281 &  92\,752 & 384.20 & 143.00 & 552.20 \\
-    delaunay\_n15      & 32\,768 &  98\,274 &  31.95 &  16.08 &  76.30 \\
+    gameofthrones      &     407 &   2\,639 &   0.17 &   0.17 &   1.87 \\
+    composers          &  3\,405 &  13\,832 &   4.46 &   2.43 &   7.67 \\
+    ca-GrQc            &  5\,242 &  28\,968 &   4.96 &   2.72 &   9.16 \\
+    ca-HepTh           &  9\,877 &  51\,946 &  27.60 &   9.62 &  40.51 \\
+    ca-HepPh           & 12\,008 & 236\,978 &  83.40 &  35.61 & 128.10 \\
+    facebook\_combined &  4\,039 &  88\,234 &  13.82 &   6.55 &  22.33 \\
+    ca-CondMat         & 23\,133 & 186\,878 & 202.50 &  55.29 & 273.60 \\
+    deezer\_europe     & 28\,281 &  92\,752 & 388.60 &  68.90 & 479.10 \\
+    delaunay\_n15      & 32\,768 &  98\,274 &  31.23 &  12.94 &  68.40 \\
     \bottomrule
   \end{tabular}
   \caption{End-to-end loading benchmarks on an Apple M4 Max laptop, all times

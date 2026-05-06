@@ -1,0 +1,24 @@
+Max elements rendered per tile (capacity 500, up to 8 levels)
+
+Graph                    Nodes     Edges  Lvls  MaxAll  MaxLvl  MaxFinest
+-------------------------------------------------------------------------
+gameofthrones              407      2639     5     324       4        324
+composers                 3405     13832     8     749       3        211
+facebook_combined         4039     88234     9     928       5        384
+ca-GrQc                   5242     28968     8     359       4        284
+ca-HepTh                  9877     51946     8    1836       3        489
+ca-CondMat               23133    186878     8    2949       3        383
+ca-HepPh                 12008    236978     9    3643       3        360
+deezer_europe            28281     92752     8    2402       3        395
+delaunay_n15             32768     98274     8     283       7        283
+
+Per-level max entityCount:
+  gameofthrones: 17, 206, 284, 228, 324
+  composers: 8, 21, 117, 749, 713, 497, 251, 211
+  facebook_combined: 17, 19, 163, 244, 551, 928, 822, 543, 384
+  ca-GrQc: 49, 30, 189, 263, 359, 290, 202, 284
+  ca-HepTh: 126, 307, 569, 1836, 1515, 801, 398, 489
+  ca-CondMat: 763, 782, 2610, 2949, 1727, 1087, 468, 383
+  ca-HepPh: 8, 72, 1301, 3643, 2509, 1977, 1094, 647, 360
+  deezer_europe: 383, 824, 1364, 2402, 2095, 970, 432, 395
+  delaunay_n15: 187, 187, 164, 204, 165, 180, 130, 283

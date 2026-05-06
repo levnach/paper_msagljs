@@ -1,0 +1,26 @@
+gameofthrones: nodes=407 edges=2639  parse=4ms layout(MDS+sleeve)=1.69s [CDT=7ms routing=158ms] tiling=172ms (levels=5) total=1.87s
+composers: nodes=3405 edges=13832  parse=104ms layout(MDS+sleeve)=5.14s [CDT=70ms routing=4.39s] tiling=2.43s (levels=8) total=7.67s
+ca-GrQc: nodes=5242 edges=28968  parse=243ms layout(MDS+sleeve)=6.20s [CDT=157ms routing=4.80s] tiling=2.72s (levels=8) total=9.16s
+facebook_combined: nodes=4039 edges=88234  parse=175ms layout(MDS+sleeve)=15.61s [CDT=69ms routing=13.75s] tiling=6.55s (levels=9) total=22.33s
+ca-HepTh: nodes=9877 edges=51946  parse=802ms layout(MDS+sleeve)=30.08s [CDT=153ms routing=27.45s] tiling=9.62s (levels=8) total=40.51s
+ca-HepPh: nodes=12008 edges=236978  parse=1.30s layout(MDS+sleeve)=91.2s [CDT=161ms routing=83.2s] tiling=35.61s (levels=9) total=128.1s
+ca-CondMat: nodes=23133 edges=186878  parse=4.50s layout(MDS+sleeve)=213.8s [CDT=469ms routing=202.0s] tiling=55.29s (levels=8) total=273.6s
+deezer_europe: nodes=28281 edges=92752  parse=6.58s layout(MDS+sleeve)=403.6s [CDT=385ms routing=388.2s] tiling=68.9s (levels=8) total=479.1s
+delaunay_n15: nodes=32768 edges=98274  parse=8.74s layout(MDS+sleeve)=46.70s [CDT=413ms routing=30.81s] tiling=12.94s (levels=8) total=68.4s
+
+================================================================
+  Loading benchmark — sleeve routing + tiling (capacity=500, levels=8)
+  Date: 2026-05-06T17:39:12.480Z
+================================================================
+Graph                      Nodes     Edges    Routing (CDT+Dijk)      Tiling   Total loading
+--------------------------------------------------------------------------------------------
+gameofthrones                407      2639     165ms (7ms+158ms)       172ms           1.87s
+composers                   3405     13832    4.46s (70ms+4.39s)       2.43s           7.67s
+ca-GrQc                     5242     28968   4.96s (157ms+4.80s)       2.72s           9.16s
+facebook_combined           4039     88234  13.82s (69ms+13.75s)       6.55s          22.33s
+ca-HepTh                    9877     51946  27.60s (153ms+27.45s)       9.62s          40.51s
+ca-HepPh                   12008    236978   83.4s (161ms+83.2s)      35.61s          128.1s
+ca-CondMat                 23133    186878  202.5s (469ms+202.0s)      55.29s          273.6s
+deezer_europe              28281     92752  388.6s (385ms+388.2s)       68.9s          479.1s
+delaunay_n15               32768     98274  31.23s (413ms+30.81s)      12.94s           68.4s
+
