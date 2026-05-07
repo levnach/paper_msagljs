@@ -204,14 +204,20 @@ the tile pyramid.
 \label{alg:build-pyramid}
 \begin{algorithmic}[1]
 \State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
-\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$;\quad $\mathit{used} \gets |T_0|$ \Comment{$|T|$ = element count of tile $T$, summed over all built levels}
-\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements \textbf{and} its width/height $\ge \mathit{minTileSize}$}
-  \State $\mathit{next} \gets$ split every tile of $\mathit{levels}[z]$ into four sub-tiles
-  \State within each parent, distribute nodes/labels/arrowheads by bbox, and split each edge clip at the tile midlines (Section~\ref{sec:tile-build})
-  \If{$200\cdot(\mathit{used} + |\mathit{next}|) > \mathcal{M}_{\max}$}
-    \State \textbf{discard} $\mathit{next}$; \textbf{break} \Comment{memory budget reached; check is incremental during the split}
+\State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$;\quad $\mathit{used} \gets |T_0|$ \Comment{$|T|$ = element count of tile $T$}
+\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements}
+  \State $\mathit{next} \gets$ empty $2^{z+1}{\times}2^{z+1}$ tile grid
+  \ForAll{tiles $T \in \mathit{levels}[z]$} \Comment{per-tile inner loop}
+    \State split $T$ into its four sub-tiles of $\mathit{next}$ \Comment{Section~\ref{sec:tile-build}}
+    \State $\mathit{used} \mathrel{+}=$ number of new elements added to $\mathit{next}$
+    \If{$200 \cdot \mathit{used} > \mathcal{M}_{\max}$} \Comment{memory budget; checked mid-split}
+      \State \textbf{discard} $\mathit{next}$ and \textbf{break} pyramid growth
+    \EndIf
+  \EndFor
+  \If{$\mathit{next}$'s tile width or height is below $\mathit{minTileSize}$}
+    \State \textbf{break} \Comment{tile size below threshold}
   \EndIf
-  \State $\mathit{levels}[z{+}1] \gets \mathit{next}$;\quad $\mathit{used} \mathrel{+}= |\mathit{next}|$;\quad $z \gets z + 1$
+  \State $\mathit{levels}[z{+}1] \gets \mathit{next}$;\quad $z \gets z + 1$
 \EndWhile
 \State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
 \State compute $\mathrm{PageRank}(G)$
@@ -219,7 +225,7 @@ the tile pyramid.
   \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
   \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
   \State route every edge $e\in E_z$ on this CDT, optionally using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
-  \State clip each edge of the level with the tiles
+  \State rebuild the tiles of $\mathit{levels}[z]$\Comment{Section~\ref{sec:tile-build}}
 \EndFor
 \State \Return $\mathit{levels}$
 \end{algorithmic}
@@ -358,8 +364,9 @@ each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
   them, Section~\ref{sec:filter};
 \item reroute the edges of $G_z$ around the resulting obstacles,
   Section~\ref{sec:level-reroute};
-\item recompute the per-tile edge clips by splitting the new curves
-  at tile boundaries, Section~\ref{sec:tile-build}.
+\item recompute the per-tile edge clips on levels $0,\ldots,z$ by
+  re-seeding the root tile with the new curves and applying the
+  top-down midline split, Section~\ref{sec:tile-build}.
 \end{enumerate}
 Figure~\ref{fig:tile-pyramid} shows two adjacent pyramid levels built
 by this procedure; Algorithm~\ref{alg:build-pyramid} summarizes the
@@ -431,14 +438,18 @@ At each level we change the graph and the node sizes, so the edges
 must be rerouted on each level as well. We rerun the sleeve router,
 Section~\ref{sec:sleeve-routing}, on the set of the level edges.
 
-\paragraph{Per-level CDT.} For level~$z-1$ we build a dedicated CDT
-from the inflated polylines of~$V_{z-1}$ only, using each node's
-level-$z{-}1$ scale. The global landmark~$v_0$, for example, enters
-the triangulation as an obstacle that is $2^{Z-z+1}\!\times$ its
-finest-level size in each dimension, so routes naturally bend around
-it.
-
-\paragraph{Routing hint.} For every edge~$e\in E_{z-1}$ we already have a route~$c_e$ computed at the finer level~$z$. Sampling~$c_e$ and listing the level-$z{-}1$ CDT triangles it visits, expanded by one neighbor hop, yields a triangle \emph{sleeve}~$S_e$ that we can use as a per-edge hint for an A* search restricted to~$S_e$. This keeps the coarse route close to the fine one, so an edge deforms smoothly as the user zooms out instead of flipping to the other side of a landmark. The price is one independent A* per edge.
+\paragraph{Per-level routing with an optional hint.}
+For level~$O \le z < Z$ we build a dedicated CDT from the inflated
+polylines of~$V_{z}$ only, using each node's level-$z$ scale.  If we
+process the levels starting from $Z-1$ then for every edge~$e\in E_z$
+we already have a route~$c_e$ computed at the finer
+level~$z+1$. Sampling~$c_e$ and listing the level-$z$ CDT triangles it
+visits, expanded by one neighbor hop, yields a triangle
+\emph{sleeve}~$S_e$ that we can use as a per-edge hint for an A*
+search restricted to~$S_e$. This keeps the coarse route close to the
+fine one, so an edge deforms smoothly as the user zooms out instead of
+ocassionally flipping to the other side of a node obstacle. The price
+is one independent A* per edge.
 
 By default we instead reuse the per-source Dijkstra trees of
 Section~\ref{sec:sleeve}, which are faster and behave well in
@@ -453,14 +464,27 @@ paper do not have subgraphs.
 
 \subsection{Splitting Edges between Tiles}
 \label{sec:tile-build}
+We speed up the edge clip generation by the following idea. Consider a
+tile and and edge clip with the curve that might intersect the
+boundary of the tile only at curve's end points. Intersect the curve
+with the middle lines of the tile and consider the new clips obtained
+by cutting the curve at these intersectieons. The new clips have the
+same property : the only overlap the boundary of the new tiles at
+their boundaries.
+When we create the level we have each edge clip already contained in
+its tile, so the subdivision starts from it.
+When we prepare the tiles for rendering we have graph $G_z$ with brand
+new edges of the level, so for each edge of $G_z$ we start the subdivision with the top level
+tile. 
 
-Once each level $G_z$ has its final geometry, we cut that level into the tiles defined at the start of Section~\ref{sec:tiling}; we write $(\mathit{rect}, \mathit{tiledata})$ for a tile, with $\mathit{rect}$ its rectangle. Two edge clips inside the same tile are merged whenever their curves coincide on the tile's interior, with the second clip's edge list appended to the first's; the implementation detects coincidence by snapping each clip's tile-entry and tile-exit points to the layout tolerance and matching the resulting endpoint pairs. Because the sleeve router is deterministic, parallel edges sharing endpoints route along the same curve, so the merger is exact in the dense-supernode case it is most needed for.
-
-The single tile at level~$0$ is obtained by clipping every element to the graph's bounding box. To build level~$z+1$ from level~$z$, each tile is split into four equal sub-tiles; nodes, labels, and arrowheads are assigned to sub-tiles by bounding-box intersection, and each edge clip is cut at the tile midlines into sub-clips confined to individual sub-tiles, each sub-clip inheriting the parent's edge list. We maintain invariant~$\mathcal{F}$: (a)~every clip stays inside its tile's rectangle, crossing the boundary only at its endpoints; (b)~for every edge~$e$, the union of all clips whose edge list contains $e$ inside a tile equals $c_e \cap \mathit{rect}$. Part~(a) makes subdivision cheap and local: thanks to~(a) we never need to clip against the four outer sides of a tile, only against its two midlines. For the default polyline edges produced by the sleeve router this is trivial---each segment meets each midline at most once---so a clip is split by walking its segments and cutting at the midline crossings. The optional Bezier-corner pass of Section~\ref{sec:collapse} replaces these line--line intersections with curve--line ones plus a parameter sort, but obeys the same invariant. Part~(b) is the rendering-correctness condition: at any zoom only the tiles intersecting the viewport are fetched and their clips drawn, and (b) guarantees that the union of what is drawn equals $c_e\cap\text{viewport}$ for every visible edge~$e$. The same invariant makes the rerouting of Section~\ref{sec:level-reroute} compatible with tiling: whenever an edge curve is replaced by a coarser-level route, (b) is reestablished by recomputing the affected clips.
-
-Subdivision of a level stops as soon as either of the following holds: (i)~every tile at that level already contains at most \capac{} elements; or (ii)~the tile width and height have both dropped below ten times the average node width and height, respectively. These are the same conditions that determine $Z$ (Algorithm~\ref{alg:build-pyramid}).
-
-Table~\ref{tab:max-per-tile} reports the resulting maximum number of elements rendered in a single tile across the entire pyramid for a range of graphs.
+\paragraph{Bundle merge.}
+To correctly reflect the number of element in a tile and speed up the
+edge clip calculation even more, the clips with the coinciding end
+points are bundled. Here we use the fact that the sleeve router is
+deterministic and it finds the unique shortest path between the two
+end points. Table~\ref{tab:max-per-tile} reports the resulting maximum
+number of elements rendered in a single tile across the entire pyramid
+for a range of graphs.
 
 % Generated from runs of modules/core/test/layout/maxPerTile.spec.ts
 % (capacity C=500, build up to Z=8).
@@ -587,25 +611,13 @@ The implementation also offers an optional pass that fits a Bezier segment into 
 \end{figure}
 
 %% ═══════════════════════════════════════════════════════════════════
-\section{WebGL Rendering}
-\label{sec:webgl}
-
-The WebGL renderer uses deck.gl~\cite{deckgl}, a GPU-accelerated framework for large-scale data visualization. The renderer sets up an \texttt{OrthographicView}, with no perspective distortion, and a \texttt{TileLayer} that dynamically loads tile data based on the current viewport. Because deck.gl's \texttt{TileLayer} expects a power-of-two pyramid of 512-pixel tiles, the root tile size is rounded up to the nearest power of two and a \emph{start zoom} level is computed so that the root tile maps to deck.gl's 512-pixel tile size. The \texttt{TileLayer}'s \texttt{getTileData} callback then translates deck.gl tile coordinates $(x, y, z)$ to \msagljs{} tile map coordinates, fetching the precomputed tile data.
-
-In deck.gl's \texttt{OrthographicView} the screen scale at view zoom~$v$ is $s = 2^{v}$ pixels per world unit, and the start zoom is $v_0 = \log_2(512/W)$, so that at $v = v_0$ the root tile of width~$W$ projects to $512$~pixels. The \texttt{TileLayer} then requests pyramid level $z = \lfloor v - v_0 \rfloor$, at which each tile covers $W/2^{z}$ world units and renders at about $512$~pixels. Note $v_0$ lives in the same view-zoom space as $v$ and is not a pyramid level: when the bounding box is bigger than one $512$-pixel tile, $v_0$ is negative. For example, with a bounding box of $1000\times 800$ world units rounded up to $W = 1024$ we get $v_0 = -1$; at $v = 2$ the scale is $s = 4$~px/wu, the chosen level is $z = 3$, and each level-$3$ tile spans $128$~wu. A $1280\times 800$-pixel viewport then covers $320\times 200$~wu and intersects $\lceil 320/128 \rceil \times \lceil 200/128 \rceil = 3\times 2 = 6$ level-$3$ tiles, the only ones fetched (Figure~\ref{fig:tile-pyramid-3d}). Between integer view zooms the level is held fixed and the tiles are GPU-scaled, so continuous panning and zooming never block on routing or rerouting.
-
-\paragraph{Rendering layers.}
-Each tile is rendered as a composite deck.gl layer containing:
-\begin{itemize}
-\item A \textbf{GeometryLayer} for node shapes (rectangles, ovals, diamonds).
-\item A \textbf{TextLayer} for node labels.
-\item A custom \textbf{CurveLayer} for edge paths, supporting cubic B\'ezier curves, arcs, and line segments via GPU-side interpolation. Curve tessellation resolution scales with zoom: at zoom level~$z$, the resolution is $2^{z-2}$ segments per curve span.
-\item An \textbf{IconLayer} for edge arrowheads.
-\item A \textbf{TextLayer} for edge labels.
-\end{itemize}
 
 \paragraph{Interaction.}
-The renderer supports pan, zoom, hover highlighting, and click selection. Hovering an edge highlights it and its incident nodes. The \texttt{zoomTo} API animates the viewport to a target rectangle with smooth transitions.
+The renderer supports pan, zoom, hover highlighting, and click
+selection. Hovering an edge highlights it and its incident nodes. The
+\texttt{zoomTo} API animates the viewport to a target rectangle with
+smooth transitions. Hoveringn on the nodes highglights the node, its
+one hope neighbors, and two-hope neigbors in different colors.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Experimental Results}
