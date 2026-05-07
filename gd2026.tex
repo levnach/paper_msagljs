@@ -619,11 +619,13 @@ zooming displays tiles from the adjacent level using
 
 The rendered geometry depends only on the zoom level and does not
 change with the viewport, except for the clipping to the visible
-window. Within each level, the displayed nodes are the PageRank
-prefix at the adaptive scales chosen for that level, and the
-displayed edges are the geodesics around exactly those obstacles,
-computed by the sleeve router of Section~\ref{sec:sleeve-routing},
-and not a subsampling of finer routes.
+window. Within each level, the displayed nodes are a subset of the
+PageRank prefix at the adaptive scales chosen for that level---a
+high-ranked candidate is dropped when it overlaps an already-accepted
+node---and the displayed edges are the geodesics around exactly those
+obstacles, computed by the sleeve router of
+Section~\ref{sec:sleeve-routing}, and not a subsampling of finer
+routes.
 
 \paragraph{Interaction.}
 The renderer supports pan, zoom, and hover highlighting of nodes and
