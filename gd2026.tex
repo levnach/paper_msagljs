@@ -178,9 +178,9 @@ therefore trade their proven optimality for speed.
 \section{Tiling}
 \label{sec:tiling}
 The input to tiling is a laid-out graph together with routed edges: we
-prefer route the edges with sleeve routing
+prefer to route the edges with sleeve routing
 (Section~\ref{sec:sleeve-routing}), to achieve the visual stability on
-a level change.The output is a sequence of $Z{+}1$ levels: level~$Z$
+a level change. The output is a sequence of $Z{+}1$ levels: level~$Z$
 is the finest, and level~$0$ is the coarsest. Each level is a
 collection of tiles indexed by integer $(x,y)$ grid coordinates. The
 output is consumed by the \texttt{TileLayer} of the
@@ -496,7 +496,7 @@ delaunay\_n15      & 32\,768 &  98\,274 & 8 &     283 & 7 \\
 
 To prepare for routing given the graph layout, each node is covered by
 a padded obstacle polygon. We compute a Constrained Delaunay
-Triangulation \cdt{} on the setq of these
+Triangulation \cdt{} on the set of these
 polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual
 graph} $D$ of \cdt{} has one node per triangle and one edge for each
 pair of triangles sharing a side. The weight of an edge is the
@@ -520,7 +520,7 @@ heuristic. When a node has many incident edges, however, running
 independent searches is wasteful. We instead group edges by source~$s$
 and run a single Dijkstra computation per source, expanding until all
 targets are reached and recovering each sleeve by following parent
-pointers. This gives a speedup comparing with $A*$ routing, for example on the Game of Thrones
+pointers. This gives a speedup compared with A* routing, for example on the Game of Thrones
 social network (407 nodes, 2\,639 edges) it cuts routing time by~30\%.
 
 We can improve even more. Since the query edges are undirected
@@ -595,8 +595,8 @@ The implementation also offers an optional pass that fits a Bezier segment into 
 \paragraph{Interaction.}
 The renderer supports pan, zoom, hover highlighting of nodes and
 edges. Hovering an edge highlights it and its incident nodes. Hovering
-on a node highglights the node, its one hop neighbors, and two-hops
-neigbors, in different colors.
+on a node highlights the node, its one-hop neighbors, and two-hop
+neighbors, in different colors.
 
 The search \texttt{zoomTo} API animates the
 viewport to the target rectangle with smooth transitions.
