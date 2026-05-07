@@ -208,7 +208,7 @@ the tile pyramid.
 \While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements}
   \State $\mathit{next} \gets$ empty $2^{z+1}{\times}2^{z+1}$ tile grid
   \ForAll{tiles $T \in \mathit{levels}[z]$} \Comment{per-tile inner loop}
-    \State split $T$ into its four sub-tiles of $\mathit{next}$ \Comment{Section~\ref{sec:tile-build}}
+    \State split $T$ into its four sub-tiles of $\mathit{next}$ \label{algln:split}\Comment{Section~\ref{sec:tile-build}}
     \State $\mathit{used} \mathrel{+}=$ number of new elements added to $\mathit{next}$
     \If{$200 \cdot \mathit{used} > \mathcal{M}_{\max}$} \Comment{memory budget; checked mid-split}
       \State \textbf{discard} $\mathit{next}$ and \textbf{break} pyramid growth
@@ -224,8 +224,8 @@ the tile pyramid.
 \For{$z = Z-1$ \textbf{down to} $0$}
   \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
   \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
-  \State route every edge $e\in E_z$ on this CDT, optionally using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:level-reroute}}
-  \State rebuild the tiles of $\mathit{levels}[z]$\Comment{Section~\ref{sec:tile-build}}
+  \State route every edge $e\in E_z$ on this CDT, optionally using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:edge-hint}}
+  \State rebuild the tiles of $\mathit{levels}[z]$ \label{algln:rebuild}\Comment{Section~\ref{sec:tile-build}}
 \EndFor
 \State \Return $\mathit{levels}$
 \end{algorithmic}
@@ -363,7 +363,7 @@ each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
 \item pick the nodes of level~$z$ with PageRank and possibly enlarge
   them, Section~\ref{sec:filter};
 \item reroute the edges of $G_z$ around the resulting obstacles,
-  Section~\ref{sec:level-reroute};
+  Section~\ref{sec:sleeve-routing};
 \item recompute the per-tile edge clips on levels $0,\ldots,z$ by
   re-seeding the root tile with the new curves and applying the
   top-down midline split, Section~\ref{sec:tile-build}.
@@ -427,64 +427,37 @@ geometrically and a per-candidate constant-time test replaces a linear
 scan over hundreds of already-accepted boxes.  On the layouts we
 tested the expected work per candidate is constant, so the overall
 cost is dominated by the initial sort by PageRank.  In our experiments
-this phase was never a bottleneck: the per-level rerouting of
-Section~\ref{sec:level-reroute} dominates the build time at every
-level we measured.
+this phase was never a bottleneck: the per-level rerouting dominates
+the build time at every level we measured.
 
-\subsection{Stable Per-Level Rerouting with a Routing Hint}
-\label{sec:level-reroute}
-
-At each level we change the graph and the node sizes, so the edges
-must be rerouted on each level as well. We rerun the sleeve router,
-Section~\ref{sec:sleeve-routing}, on the set of the level edges.
-
-\paragraph{Per-level routing with an optional hint.}
-For level~$O \le z < Z$ we build a dedicated CDT from the inflated
-polylines of~$V_{z}$ only, using each node's level-$z$ scale.  If we
-process the levels starting from $Z-1$ then for every edge~$e\in E_z$
-we already have a route~$c_e$ computed at the finer
-level~$z+1$. Sampling~$c_e$ and listing the level-$z$ CDT triangles it
-visits, expanded by one neighbor hop, yields a triangle
-\emph{sleeve}~$S_e$ that we can use as a per-edge hint for an A*
-search restricted to~$S_e$. This keeps the coarse route close to the
-fine one, so an edge deforms smoothly as the user zooms out instead of
-ocassionally flipping to the other side of a node obstacle. The price
-is one independent A* per edge.
-
-By default we instead reuse the per-source Dijkstra trees of
-Section~\ref{sec:sleeve}, which are faster and behave well in
-practice. The reason this option is not always available is that, in a
-subgraph, the set of transparent obstacles is per-edge rather than
-per-source: the boundaries of nodes on the ancestor chains of the
-edge's endpoints may be crossed, and for edges sharing a source these
-chains differ with the target. A single Dijkstra tree from the source
-therefore cannot serve all of its outgoing edges in this setting, so
-the hint+A* variant is used in this case. The graphs listed in the
-paper do not have subgraphs.
 
 \subsection{Splitting Edges between Tiles}
 \label{sec:tile-build}
-We speed up the edge clip generation by the following idea. Consider a
-tile and and edge clip with the curve that might intersect the
-boundary of the tile only at curve's end points. Intersect the curve
-with the middle lines of the tile and consider the new clips obtained
-by cutting the curve at these intersectieons. The new clips have the
-same property : the only overlap the boundary of the new tiles at
-their boundaries.
-When we create the level we have each edge clip already contained in
-its tile, so the subdivision starts from it.
-When we prepare the tiles for rendering we have graph $G_z$ with brand
-new edges of the level, so for each edge of $G_z$ we start the subdivision with the top level
-tile. 
+We speed up the edge clip generation by implementing the following
+idea. Consider a tile and an edge clip with the curve that intersects
+the boundary of the tile only at curve's endpoints. Cut the curve with
+the middle lines of the tile and consider the new clips obtained this
+way. They have the same property: all intersections of the smaller
+tile boundaries and the new edge clips happen at the endpoints.
 
-\paragraph{Bundle merge.}
-To correctly reflect the number of element in a tile and speed up the
-edge clip calculation even more, the clips with the coinciding end
-points are bundled. Here we use the fact that the sleeve router is
-deterministic and it finds the unique shortest path between the two
-end points. Table~\ref{tab:max-per-tile} reports the resulting maximum
-number of elements rendered in a single tile across the entire pyramid
-for a range of graphs.
+When we create the level's pyramid, line~\ref{algln:split} of
+Algorithm~\ref{alg:build-pyramid}, we have each edge clip already
+contained in its tile, so the subdivision starts from it.  However,
+when we prepare the tiles for rendering, line~\ref{algln:rebuild} of
+Algorithm~\ref{alg:build-pyramid}, we have graph $G_z$ with rerouted
+edges of the level, so for each edge of $G_z$ we start the subdivision
+by putting the edge curve in an empty tile containing the whole graph.
+
+\paragraph{Bundling edge clips.}
+To correctly reflect the number of elements in a tile and speed up the
+edge clip calculation even more, clips within a tile whose two
+endpoints coincide are bundled into a single clip whose attached edge
+list accumulates every contributing edge; the bundled geometry is
+taken from the first occurrence. Substituting one short curve for
+another with matching endpoints also adds visual stability.
+Table~\ref{tab:max-per-tile} reports the resulting maximum number of
+elements rendered in a single tile across the entire pyramid for a
+range of graphs.
 
 % Generated from runs of modules/core/test/layout/maxPerTile.spec.ts
 % (capacity C=500, build up to Z=8).
@@ -521,53 +494,60 @@ delaunay\_n15      & 32\,768 &  98\,274 & 8 &     283 & 7 \\
 \section{Sleeve Routing on the CDT}
 \label{sec:sleeve-routing}
 
-We describe an edge routing method that routes edges directly on the dual graph of a Constrained Delaunay Triangulation, without requiring a spanner graph. The method finds a \emph{sleeve}---a sequence of adjacent CDT triangles from source to target---and applies the funnel algorithm to produce the shortest path within it.
-
-\subsection{CDT Construction and the Dual Graph}
-
-Given the graph layout, each node is covered by a padded obstacle polygon. We compute a Constrained Delaunay Triangulation \cdt{} on the set \obst{} of these obstacle polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual graph} $D$ of \cdt{} has one node per triangle and one edge for each pair of triangles sharing a side. A triangle is \emph{free-space} if it is not contained in any obstacle interior.
+To prepare for routing given the graph layout, each node is covered by
+a padded obstacle polygon. We compute a Constrained Delaunay
+Triangulation \cdt{} on the setq of these
+polygons~\cite{delaunay1934sphere,domiter2008sweep}. The \emph{dual
+graph} $D$ of \cdt{} has one node per triangle and one edge for each
+pair of triangles sharing a side. The weight of an edge is the
+Euclidean distance between the centroids of its triangles.
 
 \subsection{Routing inside a Sleeve}
 \label{sec:sleeve}
 
-Intuitively, the sleeve is a chain of triangles meeting along shared
-edges, the \emph{diagonals}, that the path must cross in order.
-Routing an edge from~$s$ to~$t$ splits into two subproblems: a
-\emph{combinatorial} one---which sequence of diagonals to cross---and
-a \emph{geometric} one---which exact polyline through that sequence is
-shortest. The geometric step is the classical funnel
+We split routing an edge into two subproblems: a \emph{combinatorial}
+one---which sequence of diagonals to cross---and a \emph{geometric}
+one---which exact polyline through that sequence is shortest. The
+geometric step is the classical funnel
 algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which
-pulls the path taut inside the polygon formed by the sleeve
-triangles. The sleeve router itself is therefore agnostic to how the
-sleeve is produced; any search on the dual graph that returns such a
-sequence of triangles will do.
+pulls the path taut inside the polygon formed by the sleeve triangles.
 
-To obtain the sleeve we run a shortest-path search on~$D$ where the
-step from one triangle to a neighbor costs the Euclidean distance
-between their centroids; triangles inside obstacles other than the
-source and target obstacles are excluded. The natural per-edge
-instantiation is A*~\cite{hart1968formal} with the straight-line
-distance to~$t$ as heuristic. When a node has many incident edges,
-however, running independent searches is wasteful. We instead group
-edges by source~$s$ and run a single Dijkstra computation per source,
-expanding until all targets are reached and recovering each sleeve by
-following parent pointers. This reduces the number of searches
-from~$m$ to at most~$n$, the number of nodes; on the Game of Thrones
+To obtain the sleeve we run a shortest-path search on~$D$, where
+triangles inside obstacles other than the source and target obstacles
+are excluded. The natural per-edge instantiation is
+A*~\cite{hart1968formal} with the straight-line distance to~$t$ as
+heuristic. When a node has many incident edges, however, running
+independent searches is wasteful. We instead group edges by source~$s$
+and run a single Dijkstra computation per source, expanding until all
+targets are reached and recovering each sleeve by following parent
+pointers. This gives a speedup comparing with $A*$ routing, for example on the Game of Thrones
 social network (407 nodes, 2\,639 edges) it cuts routing time by~30\%.
 
-Since the query edges are undirected on~$D$, each can be served from
-either endpoint, so the number of distinct roots is in turn reducible
-by reorienting query edges to minimize that count---an instance of
-minimum vertex cover on the demand graph, well approximated in linear
-time by the greedy maximum-degree rule and used as a source-side
-speed-up in many-to-many shortest-path
-frameworks~\cite{knopp2007many}. Applying this heuristic reduces the
-number of Dijkstra trees from~331 (one per distinct source) to~199 on
-Game of Thrones and from~2\,645 to~1\,285 on the composers graph
-(3\,405 nodes, 13\,832 edges), shortening the routing pass by
-$\sim$17\% and $\sim$35\% respectively.
+We can improve even more. Since the query edges are undirected
+on~$D$, each can be served from either endpoint, so the number of
+distinct roots is in turn reducible by reorienting query edges to
+minimize that count---an instance of minimum vertex cover on the
+demand graph, well approximated in linear time by the greedy
+maximum-degree rule and used as a source-side speed-up in many-to-many
+shortest-path frameworks~\cite{knopp2007many}. Applying this heuristic
+reduces the number of Dijkstra trees from~331 (one per distinct
+source) to~199 on Game of Thrones and from~2\,645 to~1\,285 on the
+composers graph (3\,405 nodes, 13\,832 edges), shortening the routing
+pass by $\sim$17\% and $\sim$35\% respectively.
 
-Before launching the sleeve search for an edge $(s,t)$ we attempt an even cheaper shortcut: starting at the triangle containing~$s$, we walk the triangulation along the segment $\overline{st}$ triangle by triangle and check whether any traversed triangle is interior to a third obstacle. If none is, the straight segment is the geodesic and we use it directly, skipping both the dual-graph search and the funnel.
+In addition, before launching the sleeve search for an edge we try routing the
+straight line segment between the source and the target by walking the
+CDT.
+
+\subsection{Edge Hint}
+\label{sec:edge-hint}
+
+We explored a routing variant in which the path generated for an edge
+on one level provides a hint for routing the same edge on an adjacent
+level, increasing the visual stability of the routes between
+levels. Its shortcoming is that the search cannot be batched per
+source as the Dijkstra-tree variant of Section~\ref{sec:sleeve} is,
+which impacts performance.
 
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
@@ -613,19 +593,20 @@ The implementation also offers an optional pass that fits a Bezier segment into 
 %% ═══════════════════════════════════════════════════════════════════
 
 \paragraph{Interaction.}
-The renderer supports pan, zoom, hover highlighting, and click
-selection. Hovering an edge highlights it and its incident nodes. The
-\texttt{zoomTo} API animates the viewport to a target rectangle with
-smooth transitions. Hoveringn on the nodes highglights the node, its
-one hope neighbors, and two-hope neigbors in different colors.
+The renderer supports pan, zoom, hover highlighting of nodes and
+edges. Hovering an edge highlights it and its incident nodes. Hovering
+on a node highglights the node, its one hop neighbors, and two-hops
+neigbors, in different colors.
 
+The search \texttt{zoomTo} API animates the
+viewport to the target rectangle with smooth transitions.
 %% ═══════════════════════════════════════════════════════════════════
 \section{Experimental Results}
 \label{sec:experiments}
 
 We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in Node.js (single process, headless; not a browser) on an Apple~M4~Max laptop with 48\,GB of unified memory. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}, capacity~$\mathcal{C}=500$ and $Z_{\max}=8$.
 
-Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level rerouting of Section~\ref{sec:level-reroute}; and \emph{Total}, the end-to-end loading time including parsing.
+Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level rerouting; and \emph{Total}, the end-to-end loading time including parsing.
 
 \begin{table}[t]
   \centering
@@ -656,7 +637,7 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
   \label{tab:perf}
 \end{table}
 
-The CDT phase contributes negligibly to the routing column---from 8\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes of Section~\ref{sec:level-reroute}, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
+The CDT phase contributes negligibly to the routing column---from 8\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
