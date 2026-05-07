@@ -621,9 +621,8 @@ The rendered geometry depends only on the zoom level and does not
 change with the viewport, except for the clipping to the visible
 window. Within each level, the displayed nodes are the ones chosen
 for that level by the construction of Section~\ref{sec:filter}, and
-the displayed edges are the geodesics around exactly those obstacles,
-computed by the sleeve router of Section~\ref{sec:sleeve-routing},
-and not a subsampling of finer routes.
+the displayed edges are the geodesics around those nodes,
+computed by the sleeve router of Section~\ref{sec:sleeve-routing}.
 
 \paragraph{Interaction.}
 The renderer supports pan, zoom, and hover highlighting of nodes and
