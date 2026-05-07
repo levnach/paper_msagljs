@@ -597,31 +597,31 @@ The implementation also offers an optional pass that fits a Bezier segment into 
 The output of the build pipeline of Section~\ref{sec:tiling} is
 consumed in the browser by the \texttt{TileLayer} of
 \texttt{@deck.gl/geo-layers}~\cite{deckglTileLayer}. \texttt{TileLayer}
-is the standard machinery that powers slippy-map renderers: it watches
-the viewport, decides which tiles are needed at the current zoom, and
-asynchronously requests them through a user-supplied
-\texttt{getTileData} callback, caching results across frames so that
-subsequent pans within the cache stay free of work.
+is the standard component used by online tile-map renderers: it
+tracks the viewport, determines which tiles are needed at the current
+zoom, and asynchronously requests them through a user-supplied
+\texttt{getTileData} callback, caching the results across frames so
+that subsequent pans within the cache require no further work.
 
-\msagljs{} plugs into this machinery at construction time by exposing
-the precomputed pyramid as the \texttt{TileLayer}'s zoom range, with
-the coarsest pyramid level mapped to the layer's lowest zoom and the
-finest level to the highest. As the user pans and zooms,
+\msagljs{} integrates with this component at construction time by
+exposing the precomputed pyramid as the \texttt{TileLayer}'s zoom
+range, with the coarsest pyramid level mapped to the layer's lowest
+zoom and the finest level to the highest. As the user pans and zooms,
 \texttt{TileLayer} resolves the viewport to an integer zoom and a set
-of axis-aligned tile indices and, for each tile it wants to keep
-visible, calls \texttt{getTileData}. The renderer translates each such
-request back into a tile of the corresponding pyramid level and
-returns its precomputed nodes, edge clips, edge labels, and
-arrowheads. The mapping is one-to-one, so no geometric work happens at
-view time: panning slides the tile cache, and zooming swaps in tiles
-from the adjacent level under \texttt{TileLayer}'s built-in
-cross-fade.
+of axis-aligned tile indices and, for each tile it needs to display,
+calls \texttt{getTileData}. The renderer translates each such request
+back into a tile of the corresponding pyramid level and returns its
+precomputed nodes, edge clips, edge labels, and arrowheads. The
+mapping is one-to-one, so no geometric work is performed at view
+time: panning shifts the visible window over the tile cache, and
+zooming displays tiles from the adjacent level using
+\texttt{TileLayer}'s built-in cross-fade.
 
-Because the routes baked into the tiles were already rerouted per
-level by the sleeve router of Section~\ref{sec:sleeve-routing}, every
-level the viewer lands on is visually self-consistent: the displayed
-edges are the geodesics around exactly the obstacles drawn on that
-level, not a subsampling of finer routes.
+Because the routes stored in the tiles were already rerouted per level
+by the sleeve router of Section~\ref{sec:sleeve-routing}, every level
+the user views is visually self-consistent: the displayed edges are
+the geodesics around exactly the obstacles drawn on that level, not a
+subsampling of finer routes.
 
 \paragraph{Interaction.}
 The renderer supports pan, zoom, and hover highlighting of nodes and
