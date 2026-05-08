@@ -699,7 +699,7 @@ marginally slower than the baselines.
     \toprule
     & & & \multicolumn{3}{c}{Time (s)} & \multicolumn{2}{c}{Speedup} \\
     \cmidrule(lr){4-6}\cmidrule(l){7-8}
-    Graph & Srcs & VC & A* & Dijk. & Dijk.+VC & Dijk./A* & VC/Dijk. \\
+    Graph & Srcs & VC & A* & Dijk. & $\text{VC}_\text{DJ}$ & Dijk./A* & VC/Dijk. \\
     \midrule
     gameofthrones      &     331 &     198 &   0.077 &   0.059 &   0.043 & $+23$\,\% & $+28$\,\% \\
     composers          &  2\,645 &  1\,281 &   2.60  &   2.14  &   1.49  & $+18$\,\% & $+31$\,\% \\
@@ -720,7 +720,7 @@ marginally slower than the baselines.
     Section~\ref{sec:sleeve}. The CDT-construction phase, identical
     across modes, is excluded so that only the search costs are
     compared. \emph{Dijk./A*}~$=$~$(\text{A*}-\text{Dijk.})/\text{A*}$;
-    \emph{VC/Dijk.}~$=$~$(\text{Dijk.}-\text{Dijk.+VC})/\text{Dijk.}$\@.}
+    \emph{VC/Dijk.}~$=$~$(\text{Dijk.}-\text{VC}_\text{DJ})/\text{Dijk.}$\@.}
   \label{tab:routing-modes}
 \end{table}
 
