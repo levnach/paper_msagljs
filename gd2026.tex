@@ -558,8 +558,7 @@ shortest-path frameworks~\cite{knopp2007many}. Applying this heuristic
 reduces the number of Dijkstra trees from~331 (one per distinct
 source) to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
 composers graph (3\,405 nodes, 13\,832 edges), shortening the routing
-pass by $\sim$28\,\% and $\sim$31\,\% respectively. Table~\ref{tab:routing-modes}
-reports the gain on the full benchmark suite.
+pass by $\sim$28\,\% and $\sim$31\,\% respectively.
 
 In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the
@@ -763,6 +762,10 @@ marginally slower than the baselines.
 \label{sec:conclusion}
 
 We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The sleeve routing method routes edges directly on the CDT dual graph using batched Dijkstra trees and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
+
+\paragraph{Limitations.} The capacity \capac{} guides the choice of $Z$ but does not bound the post-rebuild per-tile element count: coarser levels are reassembled from PageRank-filtered candidates once $Z$ is fixed, so a rebuilt level holds fewer edges than the finest level but spreads them over correspondingly fewer tiles. Table~\ref{tab:max-per-tile} shows that on the densest collaboration graphs, \texttt{ca-HepPh} and \texttt{ca-CondMat}, the heaviest rebuilt tile holds 6--8$\times$ \capac{}, and on every benchmark graph except Game of Thrones and \texttt{delaunay\_n15} the peak falls at an intermediate level rather than the finest. Browser memory budgeting therefore needs a per-level safety margin, and tiles with extreme density may need additional client-side culling at render time.
+
+\paragraph{Future work.} Three directions look promising. First, the capacity check can be extended to the rebuilt levels by treating the post-filter element count as a refinement target and locally splitting any over-capacity tile into a sub-grid, so that the global $Z$ does not have to grow. Second, head-to-head measurements against Cornac, GraphMaps, Cosmograph, and ReGraph on a shared corpus would let users compare load time, memory, and routing quality directly; the present paper reports only \msagljs{}'s own pipeline, since each of those tools differs in input format, output features, and deployment model. Third, the tile size is currently fixed in screen pixels; tuning it for high-DPI displays and multi-monitor setups, and adapting it to mobile viewports, would extend the renderer to a broader range of clients.
 
 \msagljs{} is available at \url{https://github.com/microsoft/msagljs} under the MIT license.
 
