@@ -713,14 +713,23 @@ marginally slower than the baselines.
     \bottomrule
   \end{tabular}
   \caption{Sleeve-search times of the three routing modes on the
-    benchmark graphs of Table~\ref{tab:perf}, in headless Chrome~148.
-    \emph{Srcs} is the number of distinct edge endpoints in the demand
-    graph; \emph{VC} is the number of Dijkstra trees actually launched
-    after the greedy maximum-degree vertex-cover reorientation of
-    Section~\ref{sec:sleeve}. The CDT-construction phase, identical
-    across modes, is excluded so that only the search costs are
-    compared. \emph{DJ/A*}~$=$~$(\text{A*}-\text{DJ})/\text{A*}$;
-    \emph{VC/DJ}~$=$~$(\text{DJ}-\text{VC\_DJ})/\text{DJ}$\@.}
+    benchmark graphs of Table~\ref{tab:perf}, in headless
+    Chrome~148. Columns: \emph{Srcs}, the number of distinct edge
+    endpoints in the demand graph---one per source for the per-edge
+    A* baseline; \emph{VC}, the number of Dijkstra trees actually
+    launched after the greedy maximum-degree vertex-cover
+    reorientation of Section~\ref{sec:sleeve}; \emph{A*}, wall-clock
+    seconds of one full sleeve-search pass with per-edge A*\
+    (straight-line distance to the target as heuristic);
+    \emph{DJ}, wall-clock seconds with the batched Dijkstra-tree
+    mode---one tree per source, expanding until all of that source's
+    targets are reached; \emph{VC\_DJ}, wall-clock seconds with the
+    vertex-cover-reoriented Dijkstra-tree mode---same as DJ but with
+    only \emph{VC}~roots; \emph{DJ/A*}~$=$~$(\text{A*}-\text{DJ})/\text{A*}$,
+    speedup of DJ over A*; \emph{VC/DJ}~$=$~$(\text{DJ}-\text{VC\_DJ})/\text{DJ}$,
+    additional speedup of VC\_DJ over DJ. The CDT-construction phase,
+    identical across modes, is excluded so that only the search costs
+    are compared.}
   \label{tab:routing-modes}
 \end{table}
 
