@@ -105,7 +105,23 @@ is an open-source TypeScript library that addresses these challenges
 by combining efficient layout algorithms, a novel edge routing method,
 and a tiling scheme with semantic zoom.
 
-\msagljs{} is consumed as a set of NPM packages and renders graphs using WebGL through the deck.gl framework~\cite{deckgl}. It supports the layered Sugiyama scheme~\cite{sugiyama1981}, Pivot MDS~\cite{brandes2007eigensolver}, and IPSep-CoLa~\cite{dwyer2006ipsepcola}, with edges routed around node obstacles. Throughout this paper our typical example is a social network laid out by IPSep-CoLa; the methods we describe, however, are agnostic to the layout algorithm and apply to any node placement in which the nodes do not overlap. The build pipeline produces a hierarchy of tiles---analogous to map tiles---so that at any zoom level only a bounded number of entities are drawn. Tiles are delivered to the browser through the standard \texttt{TileLayer} of the \texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. Live demos are available online: a WebGL renderer for large graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}} and an SVG renderer for smaller, editable graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
+\msagljs{} is consumed as a set of NPM packages and renders graphs
+using WebGL through the deck.gl framework~\cite{deckgl}. It supports
+the layered Sugiyama scheme~\cite{sugiyama1981}, Pivot
+MDS~\cite{brandes2007eigensolver}, and
+IPSep-CoLa~\cite{dwyer2006ipsepcola}, with edges routed around node
+obstacles. Throughout this paper our typical example is a social
+network laid out by IPSep-CoLa; the methods we describe, however, are
+agnostic to the layout algorithm and apply to any node placement in
+which the nodes do not overlap. The graph loading pipeline builds a
+hierarchy of tiles---analogous to map tiles---so that at any zoom
+level only a bounded number of entities are drawn. Tiles are delivered
+to the browser through the standard \texttt{TileLayer} of the
+\texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. Live
+demos are available online: a WebGL renderer for large
+graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}}
+and an SVG renderer for smaller, editable
+graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
 
 This paper makes two main contributions:
 \begin{enumerate}
@@ -182,20 +198,16 @@ prefer to route the edges with sleeve routing
 (Section~\ref{sec:sleeve-routing}), to achieve the visual stability on
 a level change. The output is a sequence of $Z{+}1$ levels: level~$Z$
 is the finest, and level~$0$ is the coarsest. Each level is a
-collection of tiles indexed by integer $(x,y)$ grid coordinates. The
-output is consumed by the \texttt{TileLayer} of the
-\texttt{@deck.gl/geo-layers} package~\cite{deckglTileLayer}.
+collection of tiles indexed by integer $(x,y)$ grid coordinates.
 
 A tile is a rectangular viewport together with its \emph{tile data}:
 nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge
 clip is a curve confined to the tile rectangle, paired with the
-non-empty list of graph edges whose routes coincide with that curve
-inside the tile. Bundles capture the stretches on which several
-routes travel tight together inside a common sleeve; representing
-each such stretch as a single clip with an attached edge list, rather
-than as one clip per edge, lowers each tile's element count and the
-number of draw calls at render time, and avoids the extra
-subdivisions that an inflated count would otherwise trigger.
+non-empty list of graph edges whose routes enter and exit the tile at
+very close endpoints. Bundles usually capture the stretches on which
+several routes travel tight together inside a common sleeve;
+representing each such stretch as a single clip with an attached edge
+list, rather than as one clip per edge.
 
 Pseudocode~\ref{alg:build-pyramid} describes the algorithm building
 the tile pyramid.
@@ -466,16 +478,14 @@ covers the whole graph.
 
 \paragraph{Bundling edge clips.}
 To correctly reflect the number of elements in a tile and further
-reduce per-tile clip work, all clips within a tile that share the
-same pair of endpoints are bundled into a single clip whose attached
-edge list accumulates every contributing edge; the bundled geometry
-is taken from the first such clip encountered during splitting, and
-the choice is consistent within each level. Drawing one curve in
-place of several near-duplicates also keeps the rendered bundle
-visually clean.
-Table~\ref{tab:max-per-tile} reports the resulting maximum number of
-elements rendered in a single tile across the entire pyramid for a
-range of graphs.
+reduce the number elements in a tile, all clips within a tile that
+share the same, or almost the same, pair of endpoints are bundled into
+a single clip whose attached edge list accumulates every contributing
+edge; the bundled geometry is taken from the first such clip
+encountered during splitting, and the choice is consistent within each
+level. Table~\ref{tab:max-per-tile} reports the resulting maximum
+number of elements rendered in a single tile across the entire pyramid
+for a range of graphs.
 
 % Generated from runs of modules/core/test/layout/maxPerTile.spec.ts
 % (capacity C=500, no explicit Z cap; natural stops only).
