@@ -325,12 +325,6 @@ the tile pyramid.
   \label{fig:tile-pyramid-3d}
 \end{figure}
 
-The single tile at level~$0$ has a rectangle equal to the graph
-bounding box. Each coarser level keeps a prefix of the
-PageRank-ordered nodes together with all edges whose endpoints both
-lie in that prefix; the finest level keeps the full node and edge
-sets.
-
 \paragraph{How the index of the finest layer, $Z$, is chosen.}
 We treat the tiles differently when calculating $Z$ and when preparing
 for rendering. There is no element filtering in the former case: all
@@ -388,7 +382,9 @@ PageRank~\cite{page1999pagerank} on~$G$ once, and sort all nodes of
 the graph, $V$, by descending rank. Write $k = Z - z$ for the
 level's depth below the finest level. The candidates for level of
 depth $k$ are the nodes of the \emph{prefix} of the sorted array of
-length $\lceil |V|/2^k\rceil$.
+length $\lceil |V|/2^k\rceil$. The level's edge set, used by
+Algorithm~\ref{alg:build-pyramid}, is the subset of $E(G)$ whose
+endpoints both lie in this prefix.
 
 Node positions are inherited from the original layout and never move:
 across levels we change only each node's display size. 
