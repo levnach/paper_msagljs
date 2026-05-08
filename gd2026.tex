@@ -775,7 +775,7 @@ We presented \msagljs{}, an open-source TypeScript library for graph layout, edg
 pyramid up front, which is expensive and bounds the size of graphs we
 can handle. A natural next step is to build only the first few levels
 quickly and hand them to the renderer; the remaining levels would be
-built in the background, or on demand, as the user browses the graph. This
+built lazily as the user browses the graph. This
 would lower the time-to-first-frame and lift the limit on graph size.
 
 \bibliography{main}
