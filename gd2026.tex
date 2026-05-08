@@ -100,7 +100,7 @@ JavaScript heap is capped at roughly 4\,GB,\footnote{In current
 Chrome, V8 with pointer compression caps the per-tab JavaScript heap
 at approximately $4\,\text{GB}$ ($2^{32}$ bytes).} and users expect
 the smooth pan-and-zoom experience familiar from online
-maps. \msagljs{}\footnote{\url{https://github.com/microsoft/msagljs}}
+maps. \msagljs{}
 is an open-source TypeScript library that addresses these challenges
 by combining efficient layout algorithms, a novel edge routing method,
 and a tiling scheme with semantic zoom.
@@ -773,7 +773,7 @@ We presented \msagljs{}, an open-source TypeScript library for graph layout, edg
 
 \paragraph{Future work.} Three directions look promising. First, the capacity check can be extended to the rebuilt levels by treating the post-filter element count as a refinement target and locally splitting any over-capacity tile into a sub-grid, so that the global $Z$ does not have to grow. Second, head-to-head measurements against Cornac, GraphMaps, Cosmograph, and ReGraph on a shared corpus would let users compare load time, memory, and routing quality directly; the present paper reports only \msagljs{}'s own pipeline, since each of those tools differs in input format, output features, and deployment model. Third, the tile size is currently fixed in screen pixels; tuning it for high-DPI displays and multi-monitor setups, and adapting it to mobile viewports, would extend the renderer to a broader range of clients.
 
-\msagljs{} is available at \url{https://github.com/microsoft/msagljs} under the MIT license.
+\msagljs{} is released under the MIT license.
 
 \bibliography{main}
 
