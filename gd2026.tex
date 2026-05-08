@@ -354,9 +354,11 @@ set to the previous finest level.
 \end{enumerate}
 The third condition is checked incrementally inside the level-build
 loop, so we abort as soon as the memory barrier is reached rather than
-finishing a level we know we will throw away. We additionally cap
-$Z \le 8$ to bound the depth of the pyramid; the nine-level limit is
-comfortably above what is reachable on any input we tested.
+finishing a level we know we will throw away. On every benchmark
+graph in Table~\ref{tab:max-per-tile} the first condition fires; the
+second and third are defensive guards that bound depth on
+hypothetical inputs whose finest level cannot be packed within
+$\mathcal{C}=500$.
 \paragraph{Three phases.} Once $Z$ and the tile rectangles are fixed,
 each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
 \begin{enumerate}
@@ -460,13 +462,14 @@ elements rendered in a single tile across the entire pyramid for a
 range of graphs.
 
 % Generated from runs of modules/core/test/layout/maxPerTile.spec.ts
-% (capacity C=500, build up to Z=8).
+% (capacity C=500, no explicit Z cap; natural stops only).
 \begin{table}[t]
 \caption{Maximum number of elements rendered in a single tile across
-  the whole pyramid for several graphs (capacity $\mathcal{C}=500$,
-  $Z_{\max}=8$). The capacity~$\mathcal{C}$ only guides the choice
-  of~$Z$; we have no tight analytical bound on the actual rendered
-  per-tile element count, which is therefore reported
+  the whole pyramid for several graphs (capacity $\mathcal{C}=500$;
+  $Z$ chosen by the natural stops of
+  Section~\ref{sec:tiling}). The capacity~$\mathcal{C}$ only guides
+  the choice of~$Z$; we have no tight analytical bound on the actual
+  rendered per-tile element count, which is therefore reported
   empirically. ``Max tile's level'' is the level on which the maximum
   tile was found. In the worst cases, \texttt{ca-HepPh} and
   \texttt{ca-CondMat}, the densest tile holds 6--8$\times$ the
@@ -639,7 +642,7 @@ result.
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}, capacity~$\mathcal{C}=500$ and $Z_{\max}=8$.
+We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
 
 Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level rerouting; and \emph{Total}, the end-to-end loading time including parsing.
 
@@ -666,11 +669,11 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     Apple~M4~Max laptop, all times in seconds. \emph{Routing} sums the
     CDT-construction and Dijkstra-tree sleeve-search phases of
     Section~\ref{sec:sleeve} on the full graph; \emph{Tiling} is the
-    build of the tile pyramid (capacity $\mathcal{C}=500$,
-    $Z_{\max}=8$) of Section~\ref{sec:tiling}, which includes the
-    per-level rerouting; \emph{Total} is the total loading time
-    including parsing of the graph file, graph layout, and all other
-    stages.}
+    build of the tile pyramid, capacity $\mathcal{C}=500$ with $Z$
+    chosen by the natural stops of Section~\ref{sec:tiling}, which
+    includes the per-level rerouting; \emph{Total} is the total
+    loading time including parsing of the graph file, graph layout,
+    and all other stages.}
   \label{tab:perf}
 \end{table}
 

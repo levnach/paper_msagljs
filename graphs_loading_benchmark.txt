@@ -1,26 +1,26 @@
-gameofthrones: nodes=407 edges=2639  parse=4ms layout(MDS+sleeve)=1.69s [CDT=7ms routing=158ms] tiling=172ms (levels=5) total=1.87s
-composers: nodes=3405 edges=13832  parse=104ms layout(MDS+sleeve)=5.14s [CDT=70ms routing=4.39s] tiling=2.43s (levels=8) total=7.67s
-ca-GrQc: nodes=5242 edges=28968  parse=243ms layout(MDS+sleeve)=6.20s [CDT=157ms routing=4.80s] tiling=2.72s (levels=8) total=9.16s
-facebook_combined: nodes=4039 edges=88234  parse=175ms layout(MDS+sleeve)=15.61s [CDT=69ms routing=13.75s] tiling=6.55s (levels=9) total=22.33s
-ca-HepTh: nodes=9877 edges=51946  parse=802ms layout(MDS+sleeve)=30.08s [CDT=153ms routing=27.45s] tiling=9.62s (levels=8) total=40.51s
-ca-HepPh: nodes=12008 edges=236978  parse=1.30s layout(MDS+sleeve)=91.2s [CDT=161ms routing=83.2s] tiling=35.61s (levels=9) total=128.1s
-ca-CondMat: nodes=23133 edges=186878  parse=4.50s layout(MDS+sleeve)=213.8s [CDT=469ms routing=202.0s] tiling=55.29s (levels=8) total=273.6s
-deezer_europe: nodes=28281 edges=92752  parse=6.58s layout(MDS+sleeve)=403.6s [CDT=385ms routing=388.2s] tiling=68.9s (levels=8) total=479.1s
-delaunay_n15: nodes=32768 edges=98274  parse=8.74s layout(MDS+sleeve)=46.70s [CDT=413ms routing=30.81s] tiling=12.94s (levels=8) total=68.4s
+gameofthrones: nodes=407 edges=2639  parse=5ms layout(MDS+sleeve)=1.63s [CDT=7ms routing=154ms] tiling=202ms (levels=5) total=1.83s
+composers: nodes=3405 edges=13832  parse=101ms layout(MDS+sleeve)=4.76s [CDT=36ms routing=4.07s] tiling=2.14s (levels=8) total=7.01s
+ca-GrQc: nodes=5242 edges=28968  parse=226ms layout(MDS+sleeve)=5.42s [CDT=138ms routing=4.22s] tiling=2.59s (levels=8) total=8.23s
+facebook_combined: nodes=4039 edges=88234  parse=160ms layout(MDS+sleeve)=13.09s [CDT=42ms routing=11.48s] tiling=6.52s (levels=9) total=19.78s
+ca-HepTh: nodes=9877 edges=51946  parse=776ms layout(MDS+sleeve)=29.60s [CDT=183ms routing=26.99s] tiling=9.31s (levels=8) total=39.69s
+ca-HepPh: nodes=12008 edges=236978  parse=1.20s layout(MDS+sleeve)=87.3s [CDT=151ms routing=81.2s] tiling=35.06s (levels=9) total=123.6s
+ca-CondMat: nodes=23133 edges=186878  parse=4.45s layout(MDS+sleeve)=214.3s [CDT=477ms routing=202.5s] tiling=57.21s (levels=8) total=276.0s
+deezer_europe: nodes=28281 edges=92752  parse=6.85s layout(MDS+sleeve)=411.8s [CDT=386ms routing=395.3s] tiling=73.5s (levels=8) total=492.1s
+delaunay_n15: nodes=32768 edges=98274  parse=8.82s layout(MDS+sleeve)=48.10s [CDT=431ms routing=31.59s] tiling=13.11s (levels=8) total=70.0s
 
 ================================================================
-  Loading benchmark — sleeve routing + tiling (capacity=500, levels=8)
-  Date: 2026-05-06T17:39:12.480Z
+  Loading benchmark — sleeve routing + tiling (capacity=500, no explicit Z cap; natural stops only)
+  Date: 2026-05-08T16:06:04.331Z
 ================================================================
 Graph                      Nodes     Edges    Routing (CDT+Dijk)      Tiling   Total loading
 --------------------------------------------------------------------------------------------
-gameofthrones                407      2639     165ms (7ms+158ms)       172ms           1.87s
-composers                   3405     13832    4.46s (70ms+4.39s)       2.43s           7.67s
-ca-GrQc                     5242     28968   4.96s (157ms+4.80s)       2.72s           9.16s
-facebook_combined           4039     88234  13.82s (69ms+13.75s)       6.55s          22.33s
-ca-HepTh                    9877     51946  27.60s (153ms+27.45s)       9.62s          40.51s
-ca-HepPh                   12008    236978   83.4s (161ms+83.2s)      35.61s          128.1s
-ca-CondMat                 23133    186878  202.5s (469ms+202.0s)      55.29s          273.6s
-deezer_europe              28281     92752  388.6s (385ms+388.2s)       68.9s          479.1s
-delaunay_n15               32768     98274  31.23s (413ms+30.81s)      12.94s           68.4s
+gameofthrones                407      2639     160ms (7ms+154ms)       202ms           1.83s
+composers                   3405     13832    4.11s (36ms+4.07s)       2.14s           7.01s
+ca-GrQc                     5242     28968   4.35s (138ms+4.22s)       2.59s           8.23s
+facebook_combined           4039     88234  11.53s (42ms+11.48s)       6.52s          19.78s
+ca-HepTh                    9877     51946  27.18s (183ms+26.99s)       9.31s          39.69s
+ca-HepPh                   12008    236978   81.4s (151ms+81.2s)      35.06s          123.6s
+ca-CondMat                 23133    186878  203.0s (477ms+202.5s)      57.21s          276.0s
+deezer_europe              28281     92752  395.7s (386ms+395.3s)       73.5s          492.1s
+delaunay_n15               32768     98274  32.02s (431ms+31.59s)      13.11s           70.0s
 

@@ -1,4 +1,4 @@
-Max elements rendered per tile (capacity 500, up to 8 levels)
+Max elements rendered per tile (capacity 500, no explicit Z cap; natural stops only)
 
 Graph                    Nodes     Edges  Lvls  MaxAll  MaxLvl  MaxFinest
 -------------------------------------------------------------------------
