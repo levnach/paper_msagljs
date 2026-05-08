@@ -148,9 +148,11 @@ render large graphs with straight-line edges and supports interactive
 cluster expansion but not tiling. Cosmograph~\cite{cosmograph} uses
 GPU-accelerated force-directed layout for million-node graphs with
 straight-line edges, without
-tiling. GraphMaps~\cite{nachmanson2015graphmaps} supports tiling and
-level-of-detail for large graphs but runs only on Windows and does not
-optimize edge routes. Cornac~\cite{perrot2018cornac} handles huge
+tiling. GraphMaps~\cite{nachmanson2015graphmaps} introduced the
+tile-pyramid and node-ranking scheme on which we build, but it runs
+only on Windows, ships raster tiles, and reuses one global edge
+routing that is merely clipped per tile; \msagljs{} brings the idea to
+the browser with vector tiles and per-level sleeve rerouting. Cornac~\cite{perrot2018cornac} handles huge
 graphs with tiles and edge
 bundling~\cite{hurter2012graph,holten2009fdeb} but requires a
 multi-server backend. Earlier navigation schemes for large graphs
