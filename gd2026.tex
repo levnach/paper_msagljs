@@ -520,8 +520,10 @@ heuristic. When a node has many incident edges, however, running
 independent searches is wasteful. We instead group edges by source~$s$
 and run a single Dijkstra computation per source, expanding until all
 targets are reached and recovering each sleeve by following parent
-pointers. This gives a speedup compared with A* routing, for example on the Game of Thrones
-social network (407 nodes, 2\,639 edges) it cuts routing time by~30\%.
+pointers. This gives a speedup over A*; for example on Game of Thrones
+(407 nodes, 2\,639 edges) it cuts routing time by $\sim$36\,\%.
+Table~\ref{tab:dijkstra-vs-astar} reports the gain across the full
+benchmark suite.
 
 We can improve even more. Since the query edges are undirected
 on~$D$, each can be served from either endpoint, so the number of
@@ -531,9 +533,10 @@ demand graph, well approximated in linear time by the greedy
 maximum-degree rule and used as a source-side speed-up in many-to-many
 shortest-path frameworks~\cite{knopp2007many}. Applying this heuristic
 reduces the number of Dijkstra trees from~331 (one per distinct
-source) to~199 on Game of Thrones and from~2\,645 to~1\,285 on the
+source) to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
 composers graph (3\,405 nodes, 13\,832 edges), shortening the routing
-pass by $\sim$17\% and $\sim$35\% respectively.
+pass by $\sim$22\,\% and $\sim$37\,\% respectively. Table~\ref{tab:vc-vs-dijkstra}
+reports the gain on the full benchmark suite.
 
 In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the
@@ -670,6 +673,74 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
 \end{table}
 
 The CDT phase contributes negligibly to the routing column---from 8\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
+
+Tables~\ref{tab:dijkstra-vs-astar} and~\ref{tab:vc-vs-dijkstra} isolate
+the contribution of the two source-side optimizations of
+Section~\ref{sec:sleeve}: batched Dijkstra trees over per-edge A* and
+the vertex-cover heuristic on top of that. Each row times a single
+sleeve-search pass run after layout, with the constrained Delaunay
+triangulation excluded so that only the search costs are compared. The
+batched Dijkstra trees beat per-edge A* on every social graph, with
+the gain growing with the average degree and reaching $+71$\,\% on
+\texttt{facebook\_combined} and $+63$\,\% on \texttt{ca-HepPh}; the
+vertex-cover heuristic then shaves a further $12$--$47$\,\% off those
+same graphs. The Delaunay mesh \texttt{delaunay\_n15} is the only
+outlier: its source set is almost in bijection with its vertices, so
+neither optimization has many opportunities to share paths and the
+bookkeeping leaves them marginally slower than the baselines.
+
+\begin{table}[t]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    Graph & $|V|$ & $|E|$ & A* (s) & Dijkstra (s) & Speedup \\
+    \midrule
+    gameofthrones      &     407 &   2\,639 &   0.22 &   0.14 & $+36$\,\% \\
+    composers          &  3\,405 &  13\,832 &   8.71 &   5.96 & $+32$\,\% \\
+    ca-GrQc            &  5\,242 &  28\,968 &   7.17 &   6.33 & $+12$\,\% \\
+    facebook\_combined &  4\,039 &  88\,234 &  45.82 &  13.29 & $+71$\,\% \\
+    ca-HepTh           &  9\,877 &  51\,946 &  56.98 &  46.35 & $+19$\,\% \\
+    ca-HepPh           & 12\,008 & 236\,978 & 362.0  & 135.5  & $+63$\,\% \\
+    ca-CondMat         & 23\,133 & 186\,878 & 576.7  & 379.6  & $+34$\,\% \\
+    deezer\_europe     & 28\,281 &  92\,752 & 526.9  & 470.1  & $+11$\,\% \\
+    delaunay\_n15      & 32\,768 &  98\,274 &  26.08 &  31.59 & $-21$\,\% \\
+    \bottomrule
+  \end{tabular}
+  \caption{Sleeve-search time of batched Dijkstra trees grouped by
+    source vs.\ per-edge A*\@. The CDT-construction phase, identical
+    in both modes, is excluded so that only the search costs are
+    compared. \emph{Speedup}~$=$~$(\text{A*}-\text{Dijkstra})/\text{A*}$.}
+  \label{tab:dijkstra-vs-astar}
+\end{table}
+
+\begin{table}[t]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{6pt}
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    Graph & Sources & VC roots & Dijkstra (s) & Dijkstra+VC (s) & Speedup \\
+    \midrule
+    gameofthrones      &     331 &     198 &   0.14 &   0.11 & $+22$\,\% \\
+    composers          &  2\,645 &  1\,281 &   5.96 &   3.78 & $+37$\,\% \\
+    ca-GrQc            &  5\,241 &  2\,796 &   6.33 &   3.87 & $+39$\,\% \\
+    facebook\_combined &  3\,663 &  3\,045 &  13.29 &  11.65 & $+12$\,\% \\
+    ca-HepTh           &  9\,875 &  5\,003 &  46.35 &  26.94 & $+42$\,\% \\
+    ca-HepPh           & 12\,006 &  7\,032 & 135.5  &  91.7  & $+32$\,\% \\
+    ca-CondMat         & 23\,133 & 13\,564 & 379.6  & 200.4  & $+47$\,\% \\
+    deezer\_europe     & 21\,060 & 13\,450 & 470.1  & 375.8  & $+20$\,\% \\
+    delaunay\_n15      & 28\,467 & 23\,456 &  31.59 &  32.08 & $-2$\,\% \\
+    \bottomrule
+  \end{tabular}
+  \caption{Vertex-cover gain over plain Dijkstra-tree routing.
+    \emph{Sources} is the number of distinct edge endpoints in the
+    demand graph; \emph{VC roots} is the number of Dijkstra trees
+    actually launched after the greedy maximum-degree vertex-cover
+    reorientation of Section~\ref{sec:sleeve}. \emph{Speedup}~$=$~$(\text{Dijkstra}-\text{Dijkstra+VC})/\text{Dijkstra}$.}
+  \label{tab:vc-vs-dijkstra}
+\end{table}
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
