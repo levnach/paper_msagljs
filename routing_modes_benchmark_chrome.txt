@@ -1,0 +1,20 @@
+Routing-modes benchmark — Chrome 148.0.7778.97 (headless), Apple M4 Max
+=========================================================================
+
+Each row times a single sleeve-search pass on a layout produced without
+edge routing.  Constrained Delaunay triangulation is excluded so that
+only the search costs are compared.  Times are wall-clock from
+performance.now() inside the page.
+
+Graph                  Nodes     Edges   Sources      VC      A* (s)    Dijk (s)   Dijk+VC (s)    D/A*    VC/D
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────
+gameofthrones            407      2639       331     198      0.077s      0.059s        0.043s  +22.7%  +27.7%
+composers               3405     13832      2645    1281       2.60s       2.14s         1.49s  +17.5%  +30.5%
+ca-GrQc                 5242     28968      5241    2796       2.55s       2.52s         1.65s   +0.9%  +34.6%
+facebook_combined       4039     88234      3663    3045      13.31s       4.88s         4.36s  +63.4%  +10.7%
+ca-HepTh                9877     51946      9875    5003      17.13s      15.42s         9.28s  +10.0%  +39.9%
+ca-HepPh               12008    236978     12006    7032      111.2s      58.07s        36.38s  +47.8%  +37.3%
+ca-CondMat             23133    186878     23133   13564      189.1s      131.1s         76.5s  +30.7%  +41.7%
+deezer_europe          28281     92752     21060   13450      172.1s      154.0s        124.4s  +10.5%  +19.2%
+delaunay_n15           32768     98274     28467   23456      13.57s      16.02s        14.88s  -18.0%   +7.1%
+

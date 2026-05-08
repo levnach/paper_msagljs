@@ -521,7 +521,7 @@ independent searches is wasteful. We instead group edges by source~$s$
 and run a single Dijkstra computation per source, expanding until all
 targets are reached and recovering each sleeve by following parent
 pointers. This gives a speedup over A*; for example on Game of Thrones
-(407 nodes, 2\,639 edges) it cuts routing time by $\sim$36\,\%.
+(407 nodes, 2\,639 edges) it cuts routing time by $\sim$23\,\%.
 Table~\ref{tab:routing-modes} reports the gain across the full
 benchmark suite.
 
@@ -535,7 +535,7 @@ shortest-path frameworks~\cite{knopp2007many}. Applying this heuristic
 reduces the number of Dijkstra trees from~331 (one per distinct
 source) to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
 composers graph (3\,405 nodes, 13\,832 edges), shortening the routing
-pass by $\sim$22\,\% and $\sim$37\,\% respectively. Table~\ref{tab:routing-modes}
+pass by $\sim$28\,\% and $\sim$31\,\% respectively. Table~\ref{tab:routing-modes}
 reports the gain on the full benchmark suite.
 
 In addition, before launching the sleeve search for an edge we try routing the
@@ -639,7 +639,7 @@ result.
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in Node.js (single process, headless; not a browser) on an Apple~M4~Max laptop with 48\,GB of unified memory. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}, capacity~$\mathcal{C}=500$ and $Z_{\max}=8$.
+We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}, capacity~$\mathcal{C}=500$ and $Z_{\max}=8$.
 
 Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level rerouting; and \emph{Total}, the end-to-end loading time including parsing.
 
@@ -651,28 +651,30 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     \toprule
     Graph & $|V|$ & $|E|$ & Routing & Tiling & Total \\
     \midrule
-    gameofthrones      &     407 &   2\,639 &   0.17 &   0.17 &   1.87 \\
-    composers          &  3\,405 &  13\,832 &   4.46 &   2.43 &   7.67 \\
-    ca-GrQc            &  5\,242 &  28\,968 &   4.96 &   2.72 &   9.16 \\
-    ca-HepTh           &  9\,877 &  51\,946 &  27.60 &   9.62 &  40.51 \\
-    ca-HepPh           & 12\,008 & 236\,978 &  83.40 &  35.61 & 128.10 \\
-    facebook\_combined &  4\,039 &  88\,234 &  13.82 &   6.55 &  22.33 \\
-    ca-CondMat         & 23\,133 & 186\,878 & 202.50 &  55.29 & 273.60 \\
-    deezer\_europe     & 28\,281 &  92\,752 & 388.60 &  68.90 & 479.10 \\
-    delaunay\_n15      & 32\,768 &  98\,274 &  31.23 &  12.94 &  68.40 \\
+    gameofthrones      &     407 &   2\,639 &   0.07 &   0.07 &   0.38 \\
+    composers          &  3\,405 &  13\,832 &   1.49 &   0.74 &   2.69 \\
+    ca-GrQc            &  5\,242 &  28\,968 &   1.78 &   0.87 &   3.40 \\
+    facebook\_combined &  4\,039 &  88\,234 &   4.34 &   2.36 &   7.77 \\
+    ca-HepTh           &  9\,877 &  51\,946 &   9.33 &   3.41 &  14.87 \\
+    ca-HepPh           & 12\,008 & 236\,978 &  38.89 &  14.08 &  57.71 \\
+    ca-CondMat         & 23\,133 & 186\,878 &  79.72 &  20.52 & 110.06 \\
+    deezer\_europe     & 28\,281 &  92\,752 & 134.78 &  23.09 & 172.68 \\
+    delaunay\_n15      & 32\,768 &  98\,274 &  18.71 &   5.64 &  41.38 \\
     \bottomrule
   \end{tabular}
-  \caption{End-to-end loading benchmarks on an Apple M4 Max laptop, all times
-    in seconds. \emph{Routing} sums the CDT-construction and Dijkstra-tree
-    sleeve-search phases of Section~\ref{sec:sleeve} on the full graph;
-    \emph{Tiling} is the build of the tile pyramid (capacity $\mathcal{C}=500$,
-    $Z_{\max}=8$) of Section~\ref{sec:tiling}, which includes the per-level
-    rerouting; \emph{Total} is the total loading time including
-    parsing of the graph file, graph layout, and all other stages.}
+  \caption{End-to-end loading benchmarks in headless Chrome~148 on an
+    Apple~M4~Max laptop, all times in seconds. \emph{Routing} sums the
+    CDT-construction and Dijkstra-tree sleeve-search phases of
+    Section~\ref{sec:sleeve} on the full graph; \emph{Tiling} is the
+    build of the tile pyramid (capacity $\mathcal{C}=500$,
+    $Z_{\max}=8$) of Section~\ref{sec:tiling}, which includes the
+    per-level rerouting; \emph{Total} is the total loading time
+    including parsing of the graph file, graph layout, and all other
+    stages.}
   \label{tab:perf}
 \end{table}
 
-The CDT phase contributes negligibly to the routing column---from 8\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
+The CDT phase contributes negligibly to the routing column---from 6\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
 
 Table~\ref{tab:routing-modes} isolates the contribution of the two
 source-side optimizations of Section~\ref{sec:sleeve}: batched Dijkstra
@@ -681,9 +683,9 @@ Each row times a single sleeve-search pass run after layout, with the
 constrained Delaunay triangulation excluded so that only the search
 costs are compared. The batched Dijkstra trees beat per-edge A* on
 every social graph, with the gain growing with the average degree and
-reaching $+71$\,\% on \texttt{facebook\_combined} and $+63$\,\% on
+reaching $+63$\,\% on \texttt{facebook\_combined} and $+48$\,\% on
 \texttt{ca-HepPh}; the vertex-cover heuristic then shaves a further
-$12$--$47$\,\% off those same graphs. The Delaunay mesh
+$11$--$42$\,\% off those same graphs. The Delaunay mesh
 \texttt{delaunay\_n15} is the only outlier: its source set is almost
 in bijection with its vertices, so neither optimization has many
 opportunities to share paths and the bookkeeping leaves them
@@ -699,22 +701,22 @@ marginally slower than the baselines.
     \cmidrule(lr){4-6}\cmidrule(l){7-8}
     Graph & Srcs & VC & A* & Dijk. & Dijk.+VC & Dijk./A* & VC/Dijk. \\
     \midrule
-    gameofthrones      &     331 &     198 &   0.22 &   0.14 &   0.11 & $+36$\,\% & $+22$\,\% \\
-    composers          &  2\,645 &  1\,281 &   8.71 &   5.96 &   3.78 & $+32$\,\% & $+37$\,\% \\
-    ca-GrQc            &  5\,241 &  2\,796 &   7.17 &   6.33 &   3.87 & $+12$\,\% & $+39$\,\% \\
-    facebook\_combined &  3\,663 &  3\,045 &  45.82 &  13.29 &  11.65 & $+71$\,\% & $+12$\,\% \\
-    ca-HepTh           &  9\,875 &  5\,003 &  56.98 &  46.35 &  26.94 & $+19$\,\% & $+42$\,\% \\
-    ca-HepPh           & 12\,006 &  7\,032 & 362.0  & 135.5  &  91.7  & $+63$\,\% & $+32$\,\% \\
-    ca-CondMat         & 23\,133 & 13\,564 & 576.7  & 379.6  & 200.4  & $+34$\,\% & $+47$\,\% \\
-    deezer\_europe     & 21\,060 & 13\,450 & 526.9  & 470.1  & 375.8  & $+11$\,\% & $+20$\,\% \\
-    delaunay\_n15      & 28\,467 & 23\,456 &  26.08 &  31.59 &  32.08 & $-21$\,\% & $-2$\,\% \\
+    gameofthrones      &     331 &     198 &   0.077 &   0.059 &   0.043 & $+23$\,\% & $+28$\,\% \\
+    composers          &  2\,645 &  1\,281 &   2.60  &   2.14  &   1.49  & $+18$\,\% & $+31$\,\% \\
+    ca-GrQc            &  5\,241 &  2\,796 &   2.55  &   2.52  &   1.65  &  $+1$\,\% & $+35$\,\% \\
+    facebook\_combined &  3\,663 &  3\,045 &  13.31  &   4.88  &   4.36  & $+63$\,\% & $+11$\,\% \\
+    ca-HepTh           &  9\,875 &  5\,003 &  17.13  &  15.42  &   9.28  & $+10$\,\% & $+40$\,\% \\
+    ca-HepPh           & 12\,006 &  7\,032 & 111.2   &  58.07  &  36.38  & $+48$\,\% & $+37$\,\% \\
+    ca-CondMat         & 23\,133 & 13\,564 & 189.1   & 131.1   &  76.45  & $+31$\,\% & $+42$\,\% \\
+    deezer\_europe     & 21\,060 & 13\,450 & 172.1   & 154.0   & 124.4   & $+11$\,\% & $+19$\,\% \\
+    delaunay\_n15      & 28\,467 & 23\,456 &  13.57  &  16.02  &  14.88  & $-18$\,\% &  $+7$\,\% \\
     \bottomrule
   \end{tabular}
   \caption{Sleeve-search times of the three routing modes on the
-    benchmark graphs of Table~\ref{tab:perf}. \emph{Srcs} is the number
-    of distinct edge endpoints in the demand graph; \emph{VC} is the
-    number of Dijkstra trees actually launched after the greedy
-    maximum-degree vertex-cover reorientation of
+    benchmark graphs of Table~\ref{tab:perf}, in headless Chrome~148.
+    \emph{Srcs} is the number of distinct edge endpoints in the demand
+    graph; \emph{VC} is the number of Dijkstra trees actually launched
+    after the greedy maximum-degree vertex-cover reorientation of
     Section~\ref{sec:sleeve}. The CDT-construction phase, identical
     across modes, is excluded so that only the search costs are
     compared. \emph{Dijk./A*}~$=$~$(\text{A*}-\text{Dijk.})/\text{A*}$;
