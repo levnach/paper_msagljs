@@ -220,11 +220,11 @@ the tile pyramid.
   \State $\mathit{levels}[z{+}1] \gets \mathit{next}$;\quad $z \gets z + 1$
 \EndWhile
 \State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
-\State compute $\mathrm{PageRank}(G)$
+\State $V_{\mathrm{PR}} \gets$ nodes of $G$ sorted by descending PageRank
 \For{$z = Z-1$ \textbf{down to} $0$}
-  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{z+1},\, 2^{Z-z})$ \Comment{Section~\ref{sec:filter}}
+  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{\mathrm{PR}},\, \lceil |V|/2^{Z-z}\rceil)$ \Comment{Section~\ref{sec:filter}}
   \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
-  \State route every edge $e\in E_z$ on this CDT, optionally using the level-$(z{+}1)$ route as a sleeve hint \Comment{Section~\ref{sec:edge-hint}}
+  \State route every edge $e\in E_z$ on this CDT
   \State rebuild the tiles of $\mathit{levels}[z]$ \label{algln:rebuild}\Comment{Section~\ref{sec:tile-build}}
 \EndFor
 \State \Return $\mathit{levels}$
@@ -353,10 +353,9 @@ with default $4$~GB; the partial level is then discarded and $Z$ is
 set to the previous finest level.
 \end{enumerate}
 The third condition is checked incrementally inside the level-build
-loop, so we abort as soon as the memory barrier is reached rather than
-finishing a level we know we will throw away. On every benchmark
-graph in Table~\ref{tab:max-per-tile} the first condition fires; the
-second and third are defensive guards that bound depth on
+loop, so we abort as soon as the memory barrier is reached. On every
+benchmark graph in Table~\ref{tab:max-per-tile} the first condition
+fires; the second and third are defensive guards that bound depth on
 hypothetical inputs whose finest level cannot be packed within
 $\mathcal{C}=500$.
 \paragraph{Three phases.} Once $Z$ and the tile rectangles are fixed,
@@ -366,9 +365,8 @@ each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
   them, Section~\ref{sec:filter};
 \item reroute the edges of $G_z$ around the resulting obstacles,
   Section~\ref{sec:sleeve-routing};
-\item recompute the per-tile edge clips on levels $0,\ldots,z$ by
-  re-seeding the root tile with the new curves and applying the
-  top-down midline split, Section~\ref{sec:tile-build}.
+\item recompute the per-tile edge clips on level $z$,
+  Section~\ref{sec:tile-build}.
 \end{enumerate}
 Figure~\ref{fig:tile-pyramid} shows two adjacent pyramid levels built
 by this procedure; Algorithm~\ref{alg:build-pyramid} summarizes the
@@ -376,9 +374,9 @@ whole pipeline.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=0.48\textwidth]{tile_pyramid_coarse.pdf}\hfill
-  \includegraphics[width=0.48\textwidth]{tile_pyramid_fine.pdf}
-  \caption{Two adjacent pyramid levels are shown, cropped to the same window; the coarser level is on the left, the finer one on the right. For each level a new graph is assembled from a PageRank-ranked subset of the nodes.}
+  \includegraphics[width=0.48\textwidth]{got_top_coarse.pdf}\hfill
+  \includegraphics[width=0.48\textwidth]{got_top_fine.pdf}
+  \caption{Two adjacent pyramid levels of the Game of Thrones graph rendered by the WebGL renderer of \msagljs{} with the sleeve router. The coarser level is on the left, the finer one on the right; both panels are cropped to the same world window. For each level a new graph is assembled from a PageRank-ranked prefix of the nodes, and edges are routed against the obstacles introduced at that level.}
   \label{fig:tile-pyramid}
 \end{figure}
 
@@ -435,28 +433,50 @@ the build time at every level we measured.
 
 \subsection{Splitting Edges between Tiles}
 \label{sec:tile-build}
-We speed up the edge clip generation by implementing the following
-idea. Consider a tile and an edge clip with the curve that intersects
-the boundary of the tile only at curve's endpoints. Cut the curve with
-the middle lines of the tile and consider the new clips obtained this
-way. They have the same property: all intersections of the smaller
-tile boundaries and the new edge clips happen at the endpoints.
+We speed up edge-clip generation as follows. Let the \emph{midlines}
+of a tile be the horizontal and vertical segments through its
+center; they split the tile into four sub-tiles. Consider a tile and
+an edge clip whose curve meets the tile boundary only at the curve's
+endpoints. Cutting the curve with the tile's midlines yields a set
+of sub-clips, each contained in one sub-tile, and each preserves the
+invariant: its curve meets the sub-tile boundary only at its
+endpoints. Because of this invariant, every split reuses the parent
+clip's two boundary crossings, and only the curve-vs-midline
+intersections need to be computed; no full curve-vs-rectangle
+clipping is required. Figure~\ref{fig:clip} illustrates one such
+split.
 
-When we create the level's pyramid, line~\ref{algln:split} of
-Algorithm~\ref{alg:build-pyramid}, we have each edge clip already
-contained in its tile, so the subdivision starts from it.  However,
-when we prepare the tiles for rendering, line~\ref{algln:rebuild} of
-Algorithm~\ref{alg:build-pyramid}, we have graph $G_z$ with rerouted
-edges of the level, so for each edge of $G_z$ we start the subdivision
-by putting the edge curve in an empty tile containing the whole graph.
+\begin{figure}[!tb]
+  \centering
+  \includegraphics[width=0.5\linewidth]{edge_clips.png}
+  \caption{An edge clip with curve from \emph{start} to \emph{end}
+    inside a tile. The two red midlines split the tile into four
+    sub-tiles and meet the curve at $a$, $b$, $c$. Cutting the curve
+    at these points yields four sub-clips
+    $[\mathit{start},a]$, $[a,b]$, $[b,c]$, $[c,\mathit{end}]$, each
+    contained in one sub-tile and meeting that sub-tile's boundary
+    only at its endpoints.}
+  \label{fig:clip}
+\end{figure}
+
+When we grow the pyramid in line~\ref{algln:split} of
+Algorithm~\ref{alg:build-pyramid}, each edge clip is already
+contained in its parent tile, so subdivision starts from that
+parent. When we prepare the tiles for rendering in
+line~\ref{algln:rebuild} of Algorithm~\ref{alg:build-pyramid}, we
+have the rerouted graph $G_z$, so for each edge of $G_z$ we start
+the subdivision from an initially empty temporary tile whose extent
+covers the whole graph.
 
 \paragraph{Bundling edge clips.}
-To correctly reflect the number of elements in a tile and speed up the
-edge clip calculation even more, clips within a tile whose two
-endpoints coincide are bundled into a single clip whose attached edge
-list accumulates every contributing edge; the bundled geometry is
-taken from the first occurrence. Substituting one short curve for
-another with matching endpoints also adds visual stability.
+To correctly reflect the number of elements in a tile and further
+reduce per-tile clip work, all clips within a tile that share the
+same pair of endpoints are bundled into a single clip whose attached
+edge list accumulates every contributing edge; the bundled geometry
+is taken from the first such clip encountered during splitting, and
+the choice is consistent within each level. Drawing one curve in
+place of several near-duplicates also keeps the rendered bundle
+visually clean.
 Table~\ref{tab:max-per-tile} reports the resulting maximum number of
 elements rendered in a single tile across the entire pyramid for a
 range of graphs.
@@ -666,7 +686,9 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     \bottomrule
   \end{tabular}
   \caption{End-to-end loading benchmarks in headless Chrome~148 on an
-    Apple~M4~Max laptop, all times in seconds. \emph{Routing} sums the
+    Apple~M4~Max laptop, all times in seconds. Measurements come from
+    the \texttt{chrome-routing-bench} example, which runs the
+    unmodified browser bundle of \msagljs{}. \emph{Routing} sums the
     CDT-construction and Dijkstra-tree sleeve-search phases of
     Section~\ref{sec:sleeve} on the full graph; \emph{Tiling} is the
     build of the tile pyramid, capacity $\mathcal{C}=500$ with $Z$
