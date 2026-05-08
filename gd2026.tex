@@ -771,9 +771,12 @@ marginally slower than the baselines.
 
 We presented \msagljs{}, an open-source TypeScript library for graph layout, edge routing, and visualization in web browsers. The sleeve routing method routes edges directly on the CDT dual graph using batched Dijkstra trees and the funnel algorithm. The tiling scheme enables map-like exploration of large graphs with level-of-detail filtering and edge simplification. The WebGL renderer, built on deck.gl, provides smooth pan-and-zoom interaction.
 
-\paragraph{Future work.} The current approach builds the entire tile pyramid up front, which is expensive and bounds the size of graphs we can handle. A natural next step is to build only the first few levels quickly and hand them to the renderer; the remaining levels would be built in the background on demand as the user zooms in. This would lower the time-to-first-frame and lift the limit on graph size.
-
-\msagljs{} is released under the MIT license.
+\paragraph{Future work.} The current approach builds the entire tile
+pyramid up front, which is expensive and bounds the size of graphs we
+can handle. A natural next step is to build only the first few levels
+quickly and hand them to the renderer; the remaining levels would be
+built in the background, or on demand, as the user browses the graph. This
+would lower the time-to-first-frame and lift the limit on graph size.
 
 \bibliography{main}
 
