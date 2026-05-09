@@ -12,6 +12,17 @@
 *.cb2
 .*.lb
 
+## OS / editor junk
+.DS_Store
+**/.DS_Store
+_TZ_*.tex
+
+## Local-only graph corpus extracts (not part of this repo's shipped data)
+graphs/composers.json
+graphs/gameofthrones.json
+graphs/ca-GrQc.txt
+graphs/ca-HepTh.txt
+
 ## Intermediate documents:
 *.dvi
 *.xdv
