@@ -31,7 +31,7 @@
 
 \supplement{\url{https://github.com/microsoft/msagljs}}
 
-\GAIDecl{Generative AI was used for editorial assistance in the preparation of this article.}
+\GAIDecl{Generative AI was used throughout the preparation of this article and the accompanying software, including writing and refactoring source code, generating figures, drafting and editing technical prose, and running tests and benchmarks. The authors reviewed all AI-assisted content and take responsibility for the final form.}
 
 %% Custom macros
 \newcommand{\comm}[1]{}
@@ -177,7 +177,7 @@ $O(m\log^{2/3} n)$ single-source shortest-path algorithm that breaks
 the sorting barrier~\cite{duan2025sorting} are remarkable theoretical
 results, but they are not practical: both build elaborate global data
 structures that we avoid.
-Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}. Our sleeve method eliminates the spanner entirely and routes directly on the CDT dual graph, and is, to our knowledge, the first routing algorithm integrated with a browser-side tile pyramid that reroutes edges per level.
+Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}.
 
 \paragraph{CDT-based pathfinding.}
 The closest precedent to our routing pipeline is the CDT-and-funnel
@@ -542,6 +542,13 @@ one---which exact polyline through that sequence is shortest. The
 geometric step is the classical funnel
 algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which
 pulls the path taut inside the polygon formed by the sleeve triangles.
+The CDT alone is already a constant-stretch spanner of the visibility
+graph of its constraint set: the shortest path along CDT edges between
+two mutually visible vertices is at most $4\pi\sqrt{3}/9 \approx 2.42$
+times the visibility-geodesic distance~\cite{bose2006stretch}. Funnel
+optimization on the sleeve can only further shorten the path, and
+returns the visibility-geodesic exactly whenever the chosen sleeve
+contains it.
 
 To obtain the sleeve we run a shortest-path search on~$D$, where
 triangles inside obstacles other than the source and target obstacles
@@ -572,15 +579,13 @@ In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the
 CDT.
 
-\subsection{Edge Hint}
-\label{sec:edge-hint}
-
+\paragraph{Edge hint.}
 We explored a routing variant in which the path generated for an edge
 on one level provides a hint for routing the same edge on an adjacent
 level, increasing the visual stability of the routes between
 levels. Its shortcoming is that the search cannot be batched per
-source as the Dijkstra-tree variant of Section~\ref{sec:sleeve} is,
-which impacts performance.
+source as the Dijkstra-tree variant above is, which impacts
+performance.
 
 \subsection{Vertex Collapse at Source and Target}
 \label{sec:collapse}
@@ -765,17 +770,18 @@ marginally slower than the baselines.
   \label{tab:routing-modes}
 \end{table}
 
-To check route quality, on Game of Thrones we ran the \msagljs{}
-spline router on the same layout. Both routers finalize their paths
-with the funnel algorithm and differ only in how they choose the
-channel: the spline router uses shortest paths on a Yao-graph spanner
-of the visibility graph~\cite{dwyer2010fast}, the sleeve router uses
-the Dijkstra-tree search on the CDT dual of
-Section~\ref{sec:sleeve}. The sleeve router yields a total edge length
-of $647.6$\,k arc-length units; the spline router yields $626.6$\,k, a
-ratio of $1.03\times$. Both routers can pick suboptimal channels, but the
-sleeve router does so more often than the spline router; the resulting
-routes are within four percent of the spline router in total length.
+To assess route quality, we compared the sleeve router with the
+optimum on the full visibility graph of the padded obstacles, on the
+Game of Thrones layout. The visibility-graph optimum is the shortest
+taut polyline around the obstacles; we computed it by all-pairs
+Dijkstra over the polygon corners and the node centres. This is a
+lower bound on any obstacle-avoiding route. On the $407$-node,
+$2{,}639$-edge layout the sleeve router has total arc length
+$714.3$\,k arc-length units against $695.1$\,k for the
+visibility-graph optimum, a ratio of $1.028\times$. The worst
+per-edge ratio is $1.37$, much less than the constrained Delaunay
+triangulation's worst-case stretch $4\pi\sqrt{3}/9 \approx
+2.42$~\cite{bose2006stretch}.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
