@@ -765,6 +765,13 @@ marginally slower than the baselines.
   \label{tab:routing-modes}
 \end{table}
 
+To check route quality, on Game of Thrones we ran the spanner-based
+spline router of Dwyer and Nachmanson~\cite{dwyer2010fast} on the same
+layout. The sleeve router yields a total edge length of $647.6$\,k
+arc-length units; the spline router yields $626.6$\,k, a ratio of
+$1.03\times$. The local CDT-and-funnel approach therefore matches the
+global spanner shortcutting in route length to within four percent.
+
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
 \label{sec:conclusion}
