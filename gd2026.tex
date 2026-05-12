@@ -13,7 +13,12 @@
 
 \bibliographystyle{plainurl}% mandatory for LIPIcs
 
-\title{MSAGLJS: Browsing Large Graphs with Tile Pyramids and Sleeve Routing}
+%% Library name: anonymized as GJS under the anonymous class option,
+%% rendered as MSAGLJS for camera-ready. Resolved into a constant macro
+%% so it can flow into hyperref's pdftitle metadata.
+\ifthenelse{\boolean{gdanonymous}}{\newcommand{\libname}{GJS}}{\newcommand{\libname}{MSAGLJS}}
+
+\title{\libname: Browsing Large Graphs with Tile Pyramids and Sleeve Routing}
 
 \author{Lev Nachmanson}{Microsoft Research, Redmond, US}{levnach@hotmail.com}{}{} 
 \author{Xiaoji Chen}{}{cxiaoji@gmail.com}{}{}
@@ -29,7 +34,7 @@
 
 \category{Track 2, Long Paper}
 
-\supplement{\url{https://github.com/microsoft/msagljs}}
+\ifthenelse{\boolean{gdanonymous}}{}{\supplement{\url{https://github.com/microsoft/msagljs}}}
 
 \GAIDecl{Generative AI was used throughout the preparation of this article and the accompanying software, including writing and refactoring source code, generating figures, drafting and editing technical prose, and running tests and benchmarks. The authors reviewed all AI-assisted content and take responsibility for the final form.}
 
@@ -44,7 +49,27 @@
 \newcommand{\capac}{$\mathcal{C}$}
 \newcommand{\mw}{$\mathcal{W}$}
 \newcommand{\mh}{$\mathcal{H}$}
-\newcommand{\msagljs}{\textsf{MSAGLJS}}
+\newcommand{\msagljs}{\textsf{\libname}}
+
+%% Helper for URLs that identify the authors/organization.
+%% Renders the URL normally for camera-ready, and an "omitted" placeholder
+%% under the anonymous class option. Toggle by adding/removing "anonymous"
+%% in the \documentclass options at the top of this file.
+\newcommand{\anonurl}[1]{\ifthenelse{\boolean{gdanonymous}}{\textit{[URL omitted for double-blind review]}}{\url{#1}}}
+
+%% Helper for URLs to live demos that DO have an anonymous mirror available
+%% during review. Argument 1 is the anonymous-deployment URL (e.g. on
+%% Surge.sh or Netlify); leave it empty until the anon deploy exists, in
+%% which case the macro falls back to the standard "[URL omitted]"
+%% placeholder. Argument 2 is the canonical public URL used in the
+%% camera-ready version.
+\newcommand{\anondemowebgl}{https://gjs-sleeve.surge.sh/}% Set to anon deploy URL of the WebGL demo.
+\newcommand{\anondemosvg}{}%   Set to anon deploy URL of the SVG demo.
+\newcommand{\anondemourl}[2]{%
+  \ifthenelse{\boolean{gdanonymous}}%
+    {\ifx\\#1\\\textit{[URL omitted for double-blind review]}\else\url{#1}\fi}%
+    {\url{#2}}%
+}
 
 %% Editor-only macros (do not touch as author) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \EventEditors{TBD}
@@ -76,19 +101,19 @@ computes for each edge the shortest path in its homotopy class around
 the node obstacles, using the Constrained Delaunay Triangulation.
 We apply several heuristics to speed up the routing.
 
-We implemented our approach in the WebGL renderer of \msagljs{}, an
+We implemented our approach in the WebGL renderer of \msagljs{}\ifthenelse{\boolean{gdanonymous}}{\footnote{GJS is a placeholder name used during double-blind review; the actual library name will be disclosed in the camera-ready version.}}{}, an
 open-source TypeScript library for graph visualization in web
 browsers, with the entire pipeline running client-side, without a
 dedicated server. We target graphs with at most 40K nodes and 100K
 edges. The renderer's demo can be seen at
-\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}.
+\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl/index.html}.
 
 \msagljs{} is available on
-GitHub\footnote{\url{https://github.com/microsoft/msagljs}} and as
-NPM packages\footnote{\texttt{@msagl/core}, \texttt{@msagl/drawing},
+GitHub\footnote{\anonurl{https://github.com/microsoft/msagljs}} and as
+NPM packages\footnote{\ifthenelse{\boolean{gdanonymous}}{Package names omitted for double-blind review.}{\texttt{@msagl/core}, \texttt{@msagl/drawing},
 \texttt{@msagl/parser}, \texttt{@msagl/renderer-svg},
 \texttt{@msagl/renderer-webgl} --- all on
-\url{https://www.npmjs.com/}.}.
+\url{https://www.npmjs.com/}.}}.
 \end{abstract}
 
 \section{Introduction}
@@ -119,9 +144,9 @@ level only a bounded number of entities are drawn. Tiles are delivered
 to the browser through the standard \texttt{TileLayer} of the
 \texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. Live
 demos are available online: a WebGL renderer for large
-graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-webgl/index.html}}
+graphs\footnote{\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl/index.html}}
 and an SVG renderer for smaller, editable
-graphs\footnote{\url{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
+graphs\footnote{\anondemourl{\anondemosvg}{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
 
 This paper makes two main contributions:
 \begin{enumerate}
@@ -137,9 +162,10 @@ This paper makes two main contributions:
 Graphviz~\cite{gansner2000graphviz,graphviz} is a long-standing graph
 drawing tool supporting multiple layout algorithms, including the
 Sugiyama method and Scalable Force-Directed Placement~\cite{sfdp}; it
-does not support tiling or WebGL rendering. Our library builds on the
+does not support tiling or WebGL rendering. \ifthenelse{\boolean{gdanonymous}}{MSAGL~\cite{nachmanson2004glee} is a
+desktop layout engine that did not have the features described here.}{\msagljs{} builds on the
 earlier MSAGL desktop layout engine~\cite{nachmanson2004glee} that did
-not have the features described here. On the web,
+not have the features described here.} On the web,
 Sigma.js~\cite{sigmajs} and Cytoscape.js~\cite{franz2016cytoscape}
 provide interactive graph rendering, but rely on straight-line or
 generic spline edges without obstacle-avoiding routing and without a
@@ -149,10 +175,10 @@ cluster expansion but not tiling. Cosmograph~\cite{cosmograph} uses
 GPU-accelerated force-directed layout for million-node graphs with
 straight-line edges, without
 tiling. GraphMaps~\cite{nachmanson2015graphmaps} introduced the
-tile-pyramid and node-ranking scheme on which we build, but it runs
+tile-pyramid and node-ranking scheme\ifthenelse{\boolean{gdanonymous}}{}{ on which we build}, but it runs
 only on Windows, ships raster tiles, and reuses one global edge
 routing that is merely clipped per tile; \msagljs{} brings the idea to
-the browser with vector tiles and per-level sleeve rerouting. Cornac~\cite{perrot2018cornac} handles huge
+the browser with vector tiles and per-level sleeve routing. Cornac~\cite{perrot2018cornac} handles huge
 graphs with tiles and edge
 bundling~\cite{hurter2012graph,holten2009fdeb} but requires a
 multi-server backend. Earlier navigation schemes for large graphs
@@ -161,7 +187,7 @@ nodes into a hierarchical cluster tree, and topological fisheye
 views~\cite{gansner2005topological}, which distort a multilevel
 layout~\cite{harel2002multiscale,hu2005efficient} under the focus;
 neither targets browser-side tile pyramids or per-level edge
-rerouting. Hierarchical edge bundling~\cite{holten2006hierarchical}
+routing. Hierarchical edge bundling~\cite{holten2006hierarchical}
 and force-directed bundling~\cite{holten2009fdeb} are complementary
 clutter-reduction techniques applied \emph{after} edges have been
 routed.
@@ -437,7 +463,7 @@ geometrically and a per-candidate constant-time test replaces a linear
 scan over hundreds of already-accepted boxes.  On the layouts we
 tested the expected work per candidate is constant, so the overall
 cost is dominated by the initial sort by PageRank.  In our experiments
-this phase was never a bottleneck: the per-level rerouting dominates
+this phase was never a bottleneck: the per-level routing dominates
 the build time at every level we measured.
 
 
@@ -458,14 +484,50 @@ split.
 
 \begin{figure}[!tb]
   \centering
-  \includegraphics[width=0.5\linewidth]{edge_clips.png}
-  \caption{An edge clip with curve from \emph{start} to \emph{end}
-    inside a tile. The two red midlines split the tile into four
-    sub-tiles and meet the curve at $a$, $b$, $c$. Cutting the curve
-    at these points yields four sub-clips
-    $[\mathit{start},a]$, $[a,b]$, $[b,c]$, $[c,\mathit{end}]$, each
-    contained in one sub-tile and meeting that sub-tile's boundary
-    only at its endpoints.}
+  \begin{tikzpicture}[
+      line cap=round,
+      line join=round,
+      every node/.style={font=\small, inner sep=2pt},
+    ]
+    %% Tile outline.
+    \draw[black, line width=0.6pt] (0,0) rectangle (5,5);
+    %% Red midlines split the tile into four sub-tiles.
+    \draw[red, line width=0.9pt] (0,2.5) -- (5,2.5);
+    \draw[red, line width=0.9pt] (2.5,0) -- (2.5,5);
+    %% Polyline edge clip from start to end. After the crossing at c
+    %% the polyline stays in the UR sub-tile and merely touches the
+    %% horizontal midline at d (no crossing). The polyline is
+    %% x-monotone, so it does not self-intersect.
+    \draw[green!55!black, line width=0.9pt]
+         (0.50,3.80)
+      -- (1.50,1.20)
+      -- (3.40,1.70)
+      -- (3.70,3.30)
+      -- (4.10,2.50)
+      -- (4.55,3.30)
+      -- (5.00,3.50);
+    %% Dots at the four midline contacts (a, b, c are crossings; d is
+    %% a touching point and is itself a polyline vertex).
+    \foreach \p in {%
+        (1.00,2.50),(2.50,1.46),(3.55,2.50),(4.10,2.50)}
+      \filldraw[black] \p circle (1.1pt);
+    %% Labels.
+    \node[anchor=south]      at (0.50,3.80) {\emph{start}};
+    \node[anchor=north east] at (1.00,2.50) {$a$};
+    \node[anchor=north east] at (2.50,1.46) {$b$};
+    \node[anchor=south east] at (3.55,2.50) {$c$};
+    \node[anchor=north]      at (4.10,2.50) {$d$};
+    \node[anchor=west]       at (5.00,3.50) {\emph{end}};
+  \end{tikzpicture}
+  \caption{An edge clip, drawn as a polyline, from \emph{start} to
+    \emph{end} inside a tile. The two red midlines split the tile
+    into four sub-tiles and meet the polyline at the four
+    points $a$, $b$, $c$, $d$; at $d$ the polyline touches the
+    horizontal midline without crossing it. Cutting the polyline at
+    these points yields five sub-clips $[\mathit{start},a]$,
+    $[a,b]$, $[b,c]$, $[c,d]$, $[d,\mathit{end}]$, each contained in
+    one sub-tile and meeting that sub-tile's boundary only at its
+    endpoints.}
   \label{fig:clip}
 \end{figure}
 
@@ -566,14 +628,23 @@ benchmark suite.
 We can improve even more. Since the query edges are undirected
 on~$D$, each can be served from either endpoint, so the number of
 distinct roots is in turn reducible by reorienting query edges to
-minimize that count---an instance of minimum vertex cover on the
-demand graph, well approximated in linear time by the greedy
-maximum-degree rule and used as a source-side speed-up in many-to-many
-shortest-path frameworks~\cite{knopp2007many}. Applying this heuristic
-reduces the number of Dijkstra trees from~331 (one per distinct
-source) to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
-composers graph (3\,405 nodes, 13\,832 edges), shortening the routing
-pass by $\sim$28\,\% and $\sim$31\,\% respectively.
+minimize that count. Let the \emph{demand graph}~$H$ be the graph
+whose vertices are the graph nodes and whose edges are the query
+edges still to be routed. A set of roots~$R$ is feasible iff every
+demand edge has at least one endpoint in~$R$, that is, $R$ is a
+vertex cover of~$H$, and the smallest such~$R$ is a minimum vertex
+cover of~$H$. Minimum vertex cover is NP-hard, so we approximate it
+with the standard greedy maximum-degree rule: while $H$ still has an
+edge, pick a vertex of maximum degree in~$H$, add it to~$R$, and
+delete it together with its incident edges. Implemented with degree
+buckets the procedure runs in linear time, and is the same
+source-side reduction used in many-to-many shortest-path
+frameworks~\cite{knopp2007many}. Each demand edge is then routed
+from whichever endpoint lies in~$R$. Applying this heuristic
+reduces the number of Dijkstra trees from~331, one per distinct
+source, to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
+composers graph with 3\,405 nodes and 13\,832 edges, shortening the
+routing pass by $\sim$28\,\% and $\sim$31\,\% respectively.
 
 In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the
@@ -594,8 +665,8 @@ We improve the sleeve's geometry in the situation depicted in
 Figure~\ref{fig:collapse}. The remedy is to \emph{collapse}
 corner-hugging chain vertices to the corresponding endpoint. Walking
 the right chain of the sleeve outward from~$s$, we
-find the first vertex of the source obstacle at which the chain turns
-right toward~$s$, and replace every source-owned vertex on that chain
+find the first vertex of the source obstacle at which the chain makes
+a right turn, and replace every source-owned vertex on that chain
 up to and including this one by~$s$. The left chain is processed
 mirror-symmetrically (with left turns instead of right), and the
 target end likewise. Diagonals whose two endpoints coincide after
@@ -676,7 +747,7 @@ result.
 
 We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
 
-Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level rerouting; and \emph{Total}, the end-to-end loading time including parsing.
+Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level routing; and \emph{Total}, the end-to-end loading time including parsing.
 
 \begin{table}[t]
   \centering
@@ -705,7 +776,7 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     Section~\ref{sec:sleeve} on the full graph; \emph{Tiling} is the
     build of the tile pyramid, capacity $\mathcal{C}=500$ with $Z$
     chosen by the natural stops of Section~\ref{sec:tiling}, which
-    includes the per-level rerouting; \emph{Total} is the total
+    includes the per-level routing; \emph{Total} is the total
     loading time including parsing of the graph file, graph layout,
     and all other stages.}
   \label{tab:perf}
