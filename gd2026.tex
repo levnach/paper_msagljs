@@ -864,6 +864,71 @@ per-edge ratio is $1.37$, much less than the constrained Delaunay
 triangulation's worst-case stretch $4\pi\sqrt{3}/9 \approx
 2.42$~\cite{bose2006stretch}.
 
+\paragraph{Browsing smoothness.}
+To quantify what the tile pyramid buys at view time, we run an
+ablation against a single-layer baseline: the same pipeline is built
+once with the full pyramid, $Z$~chosen as in
+Table~\ref{tab:perf}, and once with $Z=0$, that is, a single root
+tile holding the entire graph. After the build, a scripted tour zooms
+the viewport in by $50$\,\% and pans it sinusoidally for six seconds
+in headless Chrome on the same M4~Max laptop as
+Tables~\ref{tab:perf} and \ref{tab:routing-modes}. A
+\texttt{PerformanceObserver} captures main-thread long tasks above
+$50$\,ms during the tour, and a probe walks deck.gl's Tileset2D at
+peak zoom and sums the elements of the visible tiles, that is, nodes,
+curve clips, labels, and arrowheads, as a proxy for the per-frame
+GPU load. Table~\ref{tab:smoothness} reports the result, averaged
+over two trials.
+
+\begin{table}[t]
+  \centering
+  \scriptsize
+  \setlength{\tabcolsep}{4.5pt}
+  \begin{tabular}{@{}lrrrrrrr@{}}
+    \toprule
+    & & & \multicolumn{3}{c}{Pyramid} & \multicolumn{1}{c}{Single layer} & \\
+    \cmidrule(lr){4-6}\cmidrule(lr){7-7}
+    Graph & $|V|$ & $|E|$ & LT & LT total (ms) & Elts/frame & Elts/frame & Ratio \\
+    \midrule
+    gameofthrones &     407 &   2\,639 & 2 & 146 &  2\,647 &   4\,012 &   1.5$\times$ \\
+    composers     &  3\,405 &  13\,832 & 4 & 306 &      36 &  41\,871 &  1163$\times$ \\
+    ca-GrQc       &  5\,242 &  28\,968 & 3 & 174 &      10 &  78\,358 & 7836$\times$ \\
+    ca-HepPh      & 12\,008 & 236\,978 & --- & --- & --- & 426\,115 & --- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Browsing-smoothness ablation. \textbf{Pyramid} is the
+    \msagljs{} default, with $Z$ as in Table~\ref{tab:perf};
+    \textbf{Single layer} caps the build at $Z=0$ and keeps the
+    entire graph in a single root tile. \emph{LT}, number of
+    main-thread long tasks above $50$\,ms during the six-second
+    zoom-pan tour; \emph{LT total}, their total wall-clock duration in
+    milliseconds; \emph{Elts/frame}, the number of elements,
+    that is, nodes, curve clips, labels, and arrowheads, in the
+    tiles selected for the viewport by deck.gl's Tileset2D at peak
+    zoom; \emph{Ratio}, single-layer over pyramid elements per frame.
+    All single-layer trials record zero long tasks: a single root
+    tile has nothing to fetch during the tour. On \texttt{ca-HepPh}
+    the in-browser pyramid build does not finish within the harness
+    limit; Table~\ref{tab:perf} reports a $57.71$\,s end-to-end build
+    for the same graph without the WebGL renderer attached.}
+  \label{tab:smoothness}
+\end{table}
+
+Two effects dominate. First, in pyramid mode the tour triggers a
+small, bounded amount of main-thread work---two to four long tasks
+totalling $150$--$310$\,ms over the six-second tour---as deck.gl
+materializes the tiles that the viewport enters; in single-layer mode
+no new tiles arrive, so no long tasks are recorded. Second, and far
+more important on real hardware, the pyramid reduces the per-frame
+visible-element count by $1.5\times$ on the small Game of Thrones
+graph and by three to four orders of magnitude on
+\texttt{composers} and \texttt{ca-GrQc}. The single-layer alternative
+must re-emit the entire graph on every frame: on \texttt{ca-HepPh}
+that means $426{,}115$ elements per frame, well beyond what current
+browser GPU pipelines can sustain at interactive rates. The pyramid's
+small CPU overhead during navigation is therefore the price for an
+asymptotically lighter rendering loop.
+
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
 \label{sec:conclusion}
