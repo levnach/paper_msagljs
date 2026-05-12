@@ -18,7 +18,7 @@
 %% so it can flow into hyperref's pdftitle metadata.
 \ifthenelse{\boolean{gdanonymous}}{\newcommand{\libname}{GJS}}{\newcommand{\libname}{MSAGLJS}}
 
-\title{\libname: Browsing Large Graphs with Tile Pyramids and Sleeve Routing}
+\title{Browsing Large Graphs with Tile Pyramids and Sleeve Routing in the Browser}
 
 \author{Lev Nachmanson}{Microsoft Research, Redmond, US}{levnach@hotmail.com}{}{} 
 \author{Xiaoji Chen}{}{cxiaoji@gmail.com}{}{}
@@ -34,7 +34,14 @@
 
 \category{Track 2, Long Paper}
 
-\ifthenelse{\boolean{gdanonymous}}{}{\supplement{\url{https://github.com/microsoft/msagljs}}}
+%% Source-code URLs:
+%% - In anonymous review mode, point at the anonymous.4open.science mirror
+%%   so reviewers can browse the implementation.
+%% - In camera-ready mode, point at the canonical public repository.
+\newcommand{\anonsource}{https://anonymous.4open.science/r/gjs-163F/}
+\newcommand{\canonsource}{https://github.com/microsoft/msagljs}
+
+\ifthenelse{\boolean{gdanonymous}}{}{\supplement{\url{\canonsource}}}
 
 \GAIDecl{Generative AI was used throughout the preparation of this article and the accompanying software, including writing and refactoring source code, generating figures, drafting and editing technical prose, and running tests and benchmarks. The authors reviewed all AI-assisted content and take responsibility for the final form.}
 
@@ -97,19 +104,22 @@ highest-ranked nodes remain readable, just as the names of major
 geographical features stay readable on those maps.
 
 The edges are routed by a method we call \emph{sleeve routing}, which
-computes for each edge the shortest path in its homotopy class around
-the node obstacles, using the Constrained Delaunay Triangulation.
-We apply several heuristics to speed up the routing.
+searches the dual graph of a Constrained Delaunay Triangulation to
+select a sequence of triangles through the free space, then applies the
+funnel algorithm to compute a shortest path inside the selected
+sleeve. We apply several heuristics to speed up the routing.
 
 We implemented our approach in the WebGL renderer of \msagljs{}\ifthenelse{\boolean{gdanonymous}}{\footnote{GJS is a placeholder name used during double-blind review; the actual library name will be disclosed in the camera-ready version.}}{}, an
 open-source TypeScript library for graph visualization in web
 browsers, with the entire pipeline running client-side, without a
-dedicated server. We target graphs with at most 40K nodes and 100K
-edges. The renderer's demo can be seen at
+dedicated server. Our benchmark suite contains nine graphs with up to
+$32{,}768$ nodes and $236{,}978$ edges, and measures browser-side
+parsing, layout, routing, and tile-pyramid construction. The renderer's
+demo can be seen at
 \anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl/index.html}.
 
-\msagljs{} is available on
-GitHub\footnote{\anonurl{https://github.com/microsoft/msagljs}} and as
+\msagljs{} is available
+\ifthenelse{\boolean{gdanonymous}}{as open source\footnote{Anonymized source code mirror for review: \url{\anonsource}}}{on GitHub\footnote{\url{\canonsource}}} and as
 NPM packages\footnote{\ifthenelse{\boolean{gdanonymous}}{Package names omitted for double-blind review.}{\texttt{@msagl/core}, \texttt{@msagl/drawing},
 \texttt{@msagl/parser}, \texttt{@msagl/renderer-svg},
 \texttt{@msagl/renderer-webgl} --- all on
@@ -240,12 +250,12 @@ list, rather than as one clip per edge.
 Pseudocode~\ref{alg:build-pyramid} describes the algorithm building
 the tile pyramid.
 \begin{algorithm}[t]
-\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathit{minTileSize}, \mathcal{M}_{\max})$}
+\caption{\textsc{BuildTilePyramid}$(G, \mathit{TileCapacity}, \mathit{minTileSize}, \mathcal{M}_{\max})$}
 \label{alg:build-pyramid}
 \begin{algorithmic}[1]
 \State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
 \State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$;\quad $\mathit{used} \gets |T_0|$ \Comment{$|T|$ = element count of tile $T$}
-\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements}
+\While{some tile in $\mathit{levels}[z]$ exceeds $\mathit{TileCapacity}$ elements}
   \State $\mathit{next} \gets$ empty $2^{z+1}{\times}2^{z+1}$ tile grid
   \ForAll{tiles $T \in \mathit{levels}[z]$} \Comment{per-tile inner loop}
     \State split $T$ into its four sub-tiles of $\mathit{next}$ \label{algln:split}\Comment{Section~\ref{sec:tile-build}}
@@ -866,6 +876,13 @@ can handle. A natural next step is to build only the first few levels
 quickly and hand them to the renderer; the remaining levels would be
 built lazily as the user browses the graph. This
 would lower the time-to-first-frame and lift the limit on graph size.
+
+A second challenge is that some tiles can contain many more
+elements than the capacity parameter~$\mathcal{C}$ that guides the
+build. Table~\ref{tab:max-per-tile} reports densest tiles holding
+6--8$\times$ the nominal $\mathcal{C}$ in the worst cases, which leaves
+the rendering and interaction cost uneven across the viewport.
+Enforcing an actual per-tile budget remains an open problem.
 
 \bibliography{main}
 
