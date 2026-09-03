@@ -625,18 +625,22 @@ whose vertices are the graph nodes and whose edges are the query
 edges still to be routed. A set of roots~$R$ is feasible iff every
 demand edge has at least one endpoint in~$R$, that is, $R$ is a
 vertex cover of~$H$, and the smallest such~$R$ is a minimum vertex
-cover of~$H$. Minimum vertex cover is NP-hard, so we approximate it
+cover of~$H$. The problem of finding a minimum vertex cover is
+NP-hard~\cite{karp1972reducibility}, so we approximate it
 with the standard greedy maximum-degree rule: while $H$ still has an
 edge, pick a vertex of maximum degree in~$H$, add it to~$R$, and
 delete it together with its incident edges. Implemented with degree
-buckets, the procedure runs in linear time, and is the same
-source-side reduction used in many-to-many shortest-path
-frameworks~\cite{knopp2007many}. Each demand edge is then routed
-from whichever endpoint lies in~$R$. Applying this heuristic
-reduces the number of Dijkstra trees from~331, one per distinct
-source, to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
-composers graph with 3\,405 nodes and 13\,832 edges, shortening the
-routing pass by $\sim$28\,\% and $\sim$31\,\% respectively.
+buckets, the procedure runs in linear time. Each demand edge is then
+routed from whichever endpoint lies in~$R$. To our knowledge no
+prior edge router exploits a vertex cover of the demand graph in
+this way; many-to-many shortest-path
+frameworks~\cite{knopp2007many} also amortize per-source searches,
+but they take the source set as given and do not reduce it through a
+covering argument. Applying this heuristic reduces the number of
+Dijkstra trees on Game of Thrones from~331, one per distinct source,
+to~198, and on the composers graph with 3\,405 nodes and 13\,832
+edges from~2\,645 to~1\,281, shortening the routing pass by
+$\sim$28\,\% and $\sim$31\,\% respectively.
 
 In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the

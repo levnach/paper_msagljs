@@ -71,7 +71,6 @@
 %% placeholder. Argument 2 is the canonical public URL used in the
 %% camera-ready version.
 \newcommand{\anondemowebgl}{https://gjs-sleeve.surge.sh/}% Set to anon deploy URL of the WebGL demo.
-\newcommand{\anondemosvg}{}%   Set to anon deploy URL of the SVG demo.
 \newcommand{\anondemourl}[2]{%
   \ifthenelse{\boolean{gdanonymous}}%
     {\ifx\\#1\\\textit{[URL omitted for double-blind review]}\else\url{#1}\fi}%
@@ -116,7 +115,7 @@ dedicated server. Our benchmark suite contains nine graphs with up to
 $32{,}768$ nodes and $236{,}978$ edges, and measures browser-side
 parsing, layout, routing, and tile-pyramid construction. The renderer's
 demo can be seen at
-\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl/index.html}.
+\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl-sleeve/index.html}.
 
 \msagljs{} is available
 \ifthenelse{\boolean{gdanonymous}}{as open source\footnote{Anonymized source code mirror for review: \url{\anonsource}}}{on GitHub\footnote{\url{\canonsource}}} and as
@@ -152,11 +151,9 @@ which the nodes do not overlap. The graph loading pipeline builds a
 hierarchy of tiles---analogous to map tiles---so that at any zoom
 level only a bounded number of entities are drawn. Tiles are delivered
 to the browser through the standard \texttt{TileLayer} of the
-\texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. Live
-demos are available online: a WebGL renderer for large
-graphs\footnote{\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl/index.html}}
-and an SVG renderer for smaller, editable
-graphs\footnote{\anondemourl{\anondemosvg}{https://microsoft.github.io/msagljs/renderer-svg/index.html}}.
+\texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. A live
+demo of the WebGL renderer is available
+online\footnote{\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs/renderer-webgl-sleeve/index.html}}.
 
 This paper makes two main contributions:
 \begin{enumerate}
@@ -232,9 +229,9 @@ therefore trade their proven optimality for speed.
 \section{Tiling}
 \label{sec:tiling}
 The input to tiling is a laid-out graph together with routed edges: we
-prefer to route the edges with sleeve routing
-(Section~\ref{sec:sleeve-routing}), to achieve the visual stability on
-a level change. The output is a sequence of $Z{+}1$ levels: level~$Z$
+prefer to route the edges with sleeve routing,
+Section~\ref{sec:sleeve-routing}, to achieve visual stability across
+level changes. The output is a sequence of $Z{+}1$ levels: level~$Z$
 is the finest, and level~$0$ is the coarsest. Each level is a
 collection of tiles indexed by integer $(x,y)$ grid coordinates.
 
@@ -243,8 +240,8 @@ nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge
 clip is a curve confined to the tile rectangle, paired with the
 non-empty list of graph edges whose routes enter and exit the tile at
 very close endpoints. Bundles usually capture the stretches on which
-several routes travel tight together inside a common sleeve;
-representing each such stretch as a single clip with an attached edge
+several routes travel close together inside a common sleeve; we
+represent each such stretch as a single clip with an attached edge
 list, rather than as one clip per edge.
 
 Pseudocode~\ref{alg:build-pyramid} describes the algorithm building
@@ -253,7 +250,7 @@ the tile pyramid.
 \caption{\textsc{BuildTilePyramid}$(G, \mathit{TileCapacity}, \mathit{minTileSize}, \mathcal{M}_{\max})$}
 \label{alg:build-pyramid}
 \begin{algorithmic}[1]
-\State $T_0 \gets$ single tile holding all of $G$ clipped to its bounding box
+\State $T_0 \gets$ single tile whose rectangle is the smallest axis-aligned square of side $2^{\lceil \log_2 \max(w,h)\rceil}$ centered on $G$'s bounding box of width $w$ and height $h$, holding all of $G$
 \State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$;\quad $\mathit{used} \gets |T_0|$ \Comment{$|T|$ = element count of tile $T$}
 \While{some tile in $\mathit{levels}[z]$ exceeds $\mathit{TileCapacity}$ elements}
   \State $\mathit{next} \gets$ empty $2^{z+1}{\times}2^{z+1}$ tile grid
@@ -370,8 +367,8 @@ the tile pyramid.
         {$z{=}\zlev$\,(\nn${\times}$\nn)};
     }
   \end{tikzpicture}}
-  \caption{The entities rendered on each level as the user zooms
-    in shown without scaling.}
+  \caption{The entities rendered on each level are shown without
+    scaling as the user zooms in.}
   \label{fig:tile-pyramid-3d}
 \end{figure}
 
@@ -447,13 +444,15 @@ selected nodes. If even at its original size the candidate's bounding
 box would overlap an already-accepted node's scaled box, the candidate
 is dropped.
 
-Dropping a relatively high-ranked candidate at a coarse level is less
-disruptive than it sounds. Consider Arya's node in the \emph{Game of
-Thrones} graph: as Figure~\ref{fig:tile-pyramid-3d} shows, it is
-dropped from the top layer because a higher-ranked node, Tyrion,
-has covered the available region. The user still sees that part of
-the graph as occupied, and Arya's individual node appears at a finer
-level where its box fits.
+Dropping a relatively high-ranked candidate at a coarse level is a
+deliberate compromise: we trade the inclusion of that candidate at
+this level for the invariant that the rendered nodes at every level
+remain pairwise disjoint. The cost is small in practice. Consider
+Arya's node in the \emph{Game of Thrones} graph: as
+Figure~\ref{fig:tile-pyramid-3d} shows, it is dropped from the top
+layer because a higher-ranked node, Tyrion, has covered the available
+region. The user still sees that part of the graph as occupied, and
+Arya's individual node appears at a finer level where its box fits.
 
 \paragraph{Spatial-hash overlap test.}
 A naive overlap test against every previously accepted node would
@@ -552,7 +551,7 @@ covers the whole graph.
 
 \paragraph{Bundling edge clips.}
 To correctly reflect the number of elements in a tile and further
-reduce the number elements in a tile, all clips within a tile that
+reduce the number of elements in a tile, all clips within a tile that
 share the same, or almost the same, pair of endpoints are bundled into
 a single clip whose attached edge list accumulates every contributing
 edge; the bundled geometry is taken from the first such clip
@@ -630,8 +629,8 @@ heuristic. When a node has many incident edges, however, running
 independent searches is wasteful. We instead group edges by source~$s$
 and run a single Dijkstra computation per source, expanding until all
 targets are reached and recovering each sleeve by following parent
-pointers. This gives a speedup over A*; for example on Game of Thrones
-(407 nodes, 2\,639 edges) it cuts routing time by $\sim$23\,\%.
+pointers. This gives a speedup over A*; for example on Game of Thrones,
+with 407 nodes and 2\,639 edges, it cuts routing time by $\sim$23\,\%.
 Table~\ref{tab:routing-modes} reports the gain across the full
 benchmark suite.
 
@@ -643,18 +642,22 @@ whose vertices are the graph nodes and whose edges are the query
 edges still to be routed. A set of roots~$R$ is feasible iff every
 demand edge has at least one endpoint in~$R$, that is, $R$ is a
 vertex cover of~$H$, and the smallest such~$R$ is a minimum vertex
-cover of~$H$. Minimum vertex cover is NP-hard, so we approximate it
+cover of~$H$. The problem of finding a minimum vertex cover is
+NP-hard~\cite{karp1972reducibility}, so we approximate it
 with the standard greedy maximum-degree rule: while $H$ still has an
 edge, pick a vertex of maximum degree in~$H$, add it to~$R$, and
 delete it together with its incident edges. Implemented with degree
-buckets the procedure runs in linear time, and is the same
-source-side reduction used in many-to-many shortest-path
-frameworks~\cite{knopp2007many}. Each demand edge is then routed
-from whichever endpoint lies in~$R$. Applying this heuristic
-reduces the number of Dijkstra trees from~331, one per distinct
-source, to~198 on Game of Thrones and from~2\,645 to~1\,281 on the
-composers graph with 3\,405 nodes and 13\,832 edges, shortening the
-routing pass by $\sim$28\,\% and $\sim$31\,\% respectively.
+buckets the procedure runs in linear time. Each demand edge is then
+routed from whichever endpoint lies in~$R$. To our knowledge no
+prior edge router exploits a vertex cover of the demand graph in
+this way; many-to-many shortest-path
+frameworks~\cite{knopp2007many} also amortize per-source searches,
+but they take the source set as given and do not reduce it through a
+covering argument. Applying this heuristic reduces the number of
+Dijkstra trees on Game of Thrones from~331, one per distinct source,
+to~198, and on the composers graph with 3\,405 nodes and 13\,832
+edges from~2\,645 to~1\,281, shortening the routing pass by
+$\sim$28\,\% and $\sim$31\,\% respectively.
 
 In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the
@@ -678,7 +681,7 @@ the right chain of the sleeve outward from~$s$, we
 find the first vertex of the source obstacle at which the chain makes
 a right turn, and replace every source-owned vertex on that chain
 up to and including this one by~$s$. The left chain is processed
-mirror-symmetrically (with left turns instead of right), and the
+mirror-symmetrically, with left turns instead of right, and the
 target end likewise. Diagonals whose two endpoints coincide after
 collapse are dropped, and the left/right orientation of each surviving
 diagonal is preserved from the uncollapsed geometry. The collapsed
@@ -755,9 +758,9 @@ result.
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPsepCola, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
+We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPSep-CoLa, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
 
-Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual (Section~\ref{sec:sleeve}); \emph{Tiling}, the build of the tile pyramid (Section~\ref{sec:tiling}), which includes the per-level routing; and \emph{Total}, the end-to-end loading time including parsing.
+Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual, Section~\ref{sec:sleeve}; \emph{Tiling}, the build of the tile pyramid, Section~\ref{sec:tiling}, which includes the per-level routing; and \emph{Total}, the end-to-end loading time including parsing.
 
 \begin{table}[t]
   \centering
@@ -855,7 +858,7 @@ To assess route quality, we compared the sleeve router with the
 optimum on the full visibility graph of the padded obstacles, on the
 Game of Thrones layout. The visibility-graph optimum is the shortest
 taut polyline around the obstacles; we computed it by all-pairs
-Dijkstra over the polygon corners and the node centres. This is a
+Dijkstra over the polygon corners and the node centers. This is a
 lower bound on any obstacle-avoiding route. On the $407$-node,
 $2{,}639$-edge layout the sleeve router has total arc length
 $714.3$\,k arc-length units against $695.1$\,k for the
@@ -865,69 +868,79 @@ triangulation's worst-case stretch $4\pi\sqrt{3}/9 \approx
 2.42$~\cite{bose2006stretch}.
 
 \paragraph{Browsing smoothness.}
-To quantify what the tile pyramid buys at view time, we run an
-ablation against a single-layer baseline: the same pipeline is built
-once with the full pyramid, $Z$~chosen as in
-Table~\ref{tab:perf}, and once with $Z=0$, that is, a single root
-tile holding the entire graph. After the build, a scripted tour zooms
-the viewport in by $50$\,\% and pans it sinusoidally for six seconds
-in headless Chrome on the same M4~Max laptop as
-Tables~\ref{tab:perf} and \ref{tab:routing-modes}. A
-\texttt{PerformanceObserver} captures main-thread long tasks above
-$50$\,ms during the tour, and a probe walks deck.gl's Tileset2D at
-peak zoom and sums the elements of the visible tiles, that is, nodes,
-curve clips, labels, and arrowheads, as a proxy for the per-frame
-GPU load. Table~\ref{tab:smoothness} reports the result, averaged
-over two trials.
+We test how smoothly a user can browse a freshly loaded graph in the
+browser. On the same M4~Max laptop as Tables~\ref{tab:perf} and
+\ref{tab:routing-modes}, a script loads a graph, waits for the tile
+pyramid to build, and then plays back twelve dives. Each dive picks
+a random point inside the laid-out graph, recenters the view on that
+point, zooms from the coarsest view all the way in to the finest
+detail in one second, then zooms back out to the coarsest view in
+another second. The twelve random points are independent and the
+dives run back to back.
+
+While the dives play, the script measures three things on the
+browser side. First, how often the screen actually refreshes: at
+$60$\,Hz the screen refreshes every $16.7$\,ms, and a longer gap is
+visible as a stutter. We report the $95$th percentile of the gap
+between successive refreshes, the value below which $95\,\%$ of
+refreshes fall. Second, how often the browser pauses for more than
+$50$\,ms on a single block of work; this is the standard browser
+metric of a ``long task'' and each one freezes the page. Third, at
+the deepest point of every dive, how many graphical objects the
+browser must draw, that is, nodes, edge clips, labels, and
+arrowheads, summed over the tiles that fall inside the viewport.
+This last number is a proxy for how hard the GPU has to work each
+frame. Table~\ref{tab:smoothness} reports the result.
 
 \begin{table}[t]
   \centering
   \scriptsize
-  \setlength{\tabcolsep}{4.5pt}
+  \setlength{\tabcolsep}{4pt}
   \begin{tabular}{@{}lrrrrrrr@{}}
     \toprule
-    & & & \multicolumn{3}{c}{Pyramid} & \multicolumn{1}{c}{Single layer} & \\
-    \cmidrule(lr){4-6}\cmidrule(lr){7-7}
-    Graph & $|V|$ & $|E|$ & LT & LT total (ms) & Elts/frame & Elts/frame & Ratio \\
+    Graph & $|V|$ & $|E|$ & $Z$ & LT & LT total (ms) & Frame p95 (ms) & Elts/frame max \\
     \midrule
-    gameofthrones &     407 &   2\,639 & 2 & 146 &  2\,647 &   4\,012 &   1.5$\times$ \\
-    composers     &  3\,405 &  13\,832 & 4 & 306 &      36 &  41\,871 &  1163$\times$ \\
-    ca-GrQc       &  5\,242 &  28\,968 & 3 & 174 &      10 &  78\,358 & 7836$\times$ \\
-    ca-HepPh      & 12\,008 & 236\,978 & --- & --- & --- & 426\,115 & --- \\
+    gameofthrones      &     407 &   2\,639 & 5 &  0 &     0 &  17.4 &   2\,567 \\
+    composers          &  3\,405 &  13\,832 & 9 &  1 &    51 &  18.2 &      497 \\
+    ca-GrQc            &  5\,242 &  28\,968 & 9 &  0 &     0 &  18.2 &      677 \\
+    ca-HepTh           &  9\,877 &  51\,946 & 9 &  0 &     0 &  18.2 &      383 \\
+    facebook\_combined &  4\,039 &  88\,234 & 9 &  0 &     0 &  18.0 &      495 \\
+    ca-HepPh           & 12\,008 & 236\,978 & 9 &  9 &   556 &  18.4 &   1\,394 \\
+    ca-CondMat         & 23\,133 & 186\,878 & 9 &  5 &   273 &  18.2 &   1\,391 \\
+    deezer\_europe     & 28\,281 &  92\,752 & 9 &  3 &   164 &  18.4 &   2\,505 \\
+    delaunay\_n15      & 32\,768 &  98\,274 & 9 &  0 &     0 &  18.1 &   1\,012 \\
     \bottomrule
   \end{tabular}
-  \caption{Browsing-smoothness ablation. \textbf{Pyramid} is the
-    \msagljs{} default, with $Z$ as in Table~\ref{tab:perf};
-    \textbf{Single layer} caps the build at $Z=0$ and keeps the
-    entire graph in a single root tile. \emph{LT}, number of
-    main-thread long tasks above $50$\,ms during the six-second
-    zoom-pan tour; \emph{LT total}, their total wall-clock duration in
-    milliseconds; \emph{Elts/frame}, the number of elements,
-    that is, nodes, curve clips, labels, and arrowheads, in the
-    tiles selected for the viewport by deck.gl's Tileset2D at peak
-    zoom; \emph{Ratio}, single-layer over pyramid elements per frame.
-    All single-layer trials record zero long tasks: a single root
-    tile has nothing to fetch during the tour. On \texttt{ca-HepPh}
-    the in-browser pyramid build does not finish within the harness
-    limit; Table~\ref{tab:perf} reports a $57.71$\,s end-to-end build
-    for the same graph without the WebGL renderer attached.}
+  \caption{Browsing-smoothness measurements on the benchmark graphs.
+    For each graph the script plays back twelve dives; each dive picks
+    a random point inside the laid-out graph, recenters on it, and
+    zooms from the coarsest view to the finest and back in two
+    seconds. \emph{$Z$}, number of tile-pyramid levels built;
+    \emph{LT}, number of main-thread pauses longer than $50$\,ms
+    observed during the twelve dives; \emph{LT total}, the total
+    duration of those pauses, in milliseconds; \emph{Frame p95}, the
+    $95$th percentile of the gap between successive on-screen
+    refreshes during the twelve dives, in milliseconds;
+    \emph{Elts/frame max}, the largest number of graphical objects,
+    that is, nodes, edge clips, labels, and arrowheads, that the
+    browser had to draw at the deepest point of any dive.}
   \label{tab:smoothness}
 \end{table}
 
-Two effects dominate. First, in pyramid mode the tour triggers a
-small, bounded amount of main-thread work---two to four long tasks
-totalling $150$--$310$\,ms over the six-second tour---as deck.gl
-materializes the tiles that the viewport enters; in single-layer mode
-no new tiles arrive, so no long tasks are recorded. Second, and far
-more important on real hardware, the pyramid reduces the per-frame
-visible-element count by $1.5\times$ on the small Game of Thrones
-graph and by three to four orders of magnitude on
-\texttt{composers} and \texttt{ca-GrQc}. The single-layer alternative
-must re-emit the entire graph on every frame: on \texttt{ca-HepPh}
-that means $426{,}115$ elements per frame, well beyond what current
-browser GPU pipelines can sustain at interactive rates. The pyramid's
-small CPU overhead during navigation is therefore the price for an
-asymptotically lighter rendering loop.
+Across all nine graphs the dives stay close to the $60$\,Hz target.
+On every graph, $95\,\%$ of the gaps between successive refreshes
+are at most $18.4$\,ms, only $1.7$\,ms over the ideal $16.7$\,ms gap
+at $60$\,Hz and too small to be perceived as a stutter. The
+browser pauses for more than $50$\,ms only a handful of times across
+the twelve dives on the three densest graphs, \texttt{ca-HepPh},
+\texttt{ca-CondMat}, and \texttt{deezer\_europe}, and not at all on
+the smaller ones, so the moments of stutter that do happen are short
+and rare. At the deepest zoom, the browser is asked to draw at most
+$2\,567$ objects on \texttt{gameofthrones} and at most $2\,505$ on
+\texttt{deezer\_europe} even though the latter graph has $35$ times
+more edges. This is the property the pyramid is designed to deliver:
+how hard the GPU has to work each frame depends on what is currently
+on screen, not on the total size of the graph.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
