@@ -139,10 +139,8 @@ the sources and packages are described under Supplemental Materials.%
 \label{sec:intro}
 
 Visualizing graphs in web browsers without a dedicated server presents
-unique challenges: the runtime is single-threaded, the per-tab
-JavaScript heap is capped at roughly 4\,GB,\footnote{In current
-Chrome, V8 with pointer compression caps the per-tab JavaScript heap
-at approximately $4\,\text{GB}$ ($2^{32}$ bytes).} and users expect
+practical challenges: long-running computations can block the main
+thread unless offloaded to workers, browser memory is limited, and users expect
 the smooth pan-and-zoom experience familiar from online
 maps. \msagljs{}
 is an open-source TypeScript library that addresses these challenges
@@ -159,7 +157,9 @@ network laid out by IPSep-CoLa; the methods we describe, however, are
 agnostic to the layout algorithm and apply to any node placement in
 which the nodes do not overlap. The graph loading pipeline builds a
 hierarchy of tiles---analogous to map tiles---so that at any zoom
-level only a bounded number of entities are drawn. Tiles are delivered
+level only the entities in visible tiles are drawn. The capacity
+parameter guides pyramid construction but is not a hard bound on
+rendered tile occupancy. Tiles are supplied locally
 to the browser through the standard \texttt{TileLayer} of the
 \texttt{@deck.gl/geo-layers} package, giving smooth pan and zoom. A live
 demo of the WebGL renderer is available
@@ -167,8 +167,16 @@ online\footnote{\anondemourl{\anondemowebgl}{https://microsoft.github.io/msagljs
 
 This paper makes two main contributions:
 \begin{enumerate}
-\item A \emph{tiling scheme} for large graph visualization that builds a hierarchical tile pyramid, limits visible entities per tile using PageRank-based filtering, simplifies edge routes at coarser levels, and integrates with the WebGL renderer for real-time pan and zoom.
-\item A \emph{sleeve routing} algorithm that routes edges on the dual graph of a Constrained Delaunay Triangulation, using per-source batched Dijkstra trees followed by the classical funnel algorithm to produce shortest-path geodesics in homotopy classes.
+\item A \emph{tiling scheme} for large graph visualization that builds
+  a hierarchical tile pyramid, reduces the number of visible entities using
+  PageRank-based filtering and edge-clip bundling, and integrates with
+  the WebGL renderer for interactive pan and zoom.
+\item A \emph{sleeve routing} algorithm that selects triangle
+  sequences on the dual graph of a Constrained Delaunay Triangulation
+  using per-source batched Dijkstra searches, then applies the
+  classical funnel algorithm to find shortest paths within the
+  selected sleeves. Sleeve selection is heuristic, not globally
+  shortest-path optimal.
 \end{enumerate}
 
 %% ═══════════════════════════════════════════════════════════════════
@@ -205,10 +213,9 @@ views~\cite{gansner2005topological}, which distort a multilevel
 layout~\cite{harel2002multiscale,hu2005efficient} under the focus;
 neither targets browser-side tile pyramids or per-level edge
 routing. Hierarchical edge bundling~\cite{holten2006hierarchical}
-and force-directed bundling~\cite{holten2009fdeb} are complementary
-clutter-reduction techniques applied \emph{after} edges have been
-routed.
-
+and force-directed bundling~\cite{holten2009fdeb} offer alternative
+clutter-reduction strategies; but neither method guarantees that
+ bundled edges avoid node obstacles.
 \paragraph{Shortest paths and edge routing.}
 Our sleeve algorithm walks the dual of a Constrained Delaunay
 Triangulation~\cite{shewchuk2002delaunay} and relies on the classical
@@ -218,8 +225,8 @@ The optimal algorithm for Euclidean shortest paths among polygonal
 obstacles~\cite{hershberger1999optimal} and the recent
 $O(m\log^{2/3} n)$ single-source shortest-path algorithm that breaks
 the sorting barrier~\cite{duan2025sorting} are remarkable theoretical
-results, but they are not practical: both build elaborate global data
-structures that we avoid.
+results. We do not implement or benchmark these algorithms; our
+engineering choice is to reuse a CDT and conventional graph searches.
 Graphviz builds the full visibility graph for edge routing in force-directed layouts, which has $O(n^2)$ edges. For Sugiyama layouts, it uses the funnel algorithm~\cite{dobkin1997implementing} but requires a simple containing polygon. yWorks~\cite{yworks} offers ``Organic edge routing'' based on force-directed simulation. The approach of Dwyer and Nachmanson~\cite{dwyer2010fast} routes on a Yao-graph spanner with local shortcutting. For orthogonal layouts, the libavoid framework of Wybrow, Marriott, and Stuckey performs obstacle-avoiding connector routing with incremental updates~\cite{wybrow2010orthogonal}.
 
 \paragraph{CDT-based pathfinding.}
@@ -231,55 +238,64 @@ corridor chains into single abstract edges) to recover provably
 shortest paths. Their search is, however, per-query: the bounds depend
 on the start and goal, so it cannot share work across the edges with
 the same source as our per-source Dijkstra does. For the graphs we
-target this would be roughly an order of magnitude slower; we
-therefore trade their proven optimality for speed.
+target, sharing work across queries is attractive. We trade a
+global optimality guarantee for batched search; we have not
+benchmarked their pathfinder directly, so we make no quantitative
+speed comparison with it.
 
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Tiling}
 \label{sec:tiling}
-The input to tiling is a laid-out graph together with routed edges: we
-prefer to route the edges with sleeve routing,
-Section~\ref{sec:sleeve-routing}, to achieve visual stability across
-level changes. The output is a sequence of $Z{+}1$ levels: level~$Z$
+The input to tiling is a laid-out graph together with routed edges.
+We use sleeve routing, Section~\ref{sec:sleeve-routing}, both for the
+input graph and for the coarser levels; routes at different levels
+are computed independently, so continuity across level changes is
+not guaranteed. The output is a sequence of $Z{+}1$ levels: level~$Z$
 is the finest, and level~$0$ is the coarsest. Each level is a
 collection of tiles indexed by integer $(x,y)$ grid coordinates.
 
-A tile is a rectangular viewport together with its \emph{tile data}:
+A tile is an axis-aligned square together with its \emph{tile data}:
 nodes, edge labels, edge arrowheads, and \emph{edge clips}. An edge
-clip is a curve confined to the tile rectangle, paired with the
-non-empty list of graph edges whose routes enter and exit the tile at
-very close endpoints. Bundles usually capture the stretches on which
+clip is a curve confined to the tile square, paired with the
+non-empty list of graph edges whose clipped routes have the same
+quantized endpoint pair including endpoints inside the tile.
+Bundles are intended to capture stretches on which
 several routes travel close together inside a common sleeve; we
 represent each such stretch as a single clip with an attached edge
 list, rather than as one clip per edge.
+All tiles at level~$z$ have side length $\ell_z=\ell_0/2^z$,
+where $\ell_0$ is the root tile's side length. Each subdivision
+produces four congruent square sub-tiles of half the parent's side length.
 
 Pseudocode~\ref{alg:build-pyramid} describes the algorithm building
 the tile pyramid.
 \begin{algorithm}[t]
-\caption{\textsc{BuildTilePyramid}$(G, \mathit{TileCapacity}, \mathit{minTileSize}, \mathcal{M}_{\max})$}
+\caption{\textsc{BuildTilePyramid}$(G, \mathcal{C}, \mathcal{M}_{\max})$}
 \label{alg:build-pyramid}
 \begin{algorithmic}[1]
-\State $T_0 \gets$ single tile whose rectangle is the smallest axis-aligned square of side $2^{\lceil \log_2 \max(w,h)\rceil}$ centered on $G$'s bounding box of width $w$ and height $h$, holding all of $G$
+\State $T_0 \gets$ single square tile of side $\ell_0=2^{\lceil \log_2 \max(w,h)\rceil}$ centered on $G$'s bounding box of width $w$ and height $h$, holding all of $G$
+\State $(\bar w,\bar h) \gets$ mean original node width and height
 \State $\mathit{levels} \gets [\,T_0\,]$;\quad $z \gets 0$;\quad $\mathit{used} \gets |T_0|$ \Comment{$|T|$ = element count of tile $T$}
-\While{some tile in $\mathit{levels}[z]$ exceeds $\mathit{TileCapacity}$ elements}
+\While{some tile in $\mathit{levels}[z]$ exceeds $\mathcal{C}$ elements}
   \State $\mathit{next} \gets$ empty $2^{z+1}{\times}2^{z+1}$ tile grid
   \ForAll{tiles $T \in \mathit{levels}[z]$} \Comment{per-tile inner loop}
-    \State split $T$ into its four sub-tiles of $\mathit{next}$ \label{algln:split}\Comment{Section~\ref{sec:tile-build}}
+    \State split $T$ into four congruent square sub-tiles of $\mathit{next}$ \label{algln:split}\Comment{Section~\ref{sec:tile-build}}
     \State $\mathit{used} \mathrel{+}=$ number of new elements added to $\mathit{next}$
     \If{$200 \cdot \mathit{used} > \mathcal{M}_{\max}$} \Comment{memory budget; checked mid-split}
       \State \textbf{discard} $\mathit{next}$ and \textbf{break} pyramid growth
     \EndIf
   \EndFor
-  \If{$\mathit{next}$'s tile width or height is below $\mathit{minTileSize}$}
-    \State \textbf{break} \Comment{tile size below threshold}
-  \EndIf
   \State $\mathit{levels}[z{+}1] \gets \mathit{next}$;\quad $z \gets z + 1$
+  \If{$\ell_z \leq 10\min(\bar w,\bar h)$}
+    \State \textbf{break} \Comment{retain this completed level}
+  \EndIf
 \EndWhile
 \State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
 \State $V_{\mathrm{PR}} \gets$ nodes of $G$ sorted by descending PageRank
 \For{$z = Z-1$ \textbf{down to} $0$}
   \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{\mathrm{PR}},\, \lceil |V|/2^{Z-z}\rceil)$ \Comment{Section~\ref{sec:filter}}
+  \State $E_z \gets \{uv\in E(G): u,v\in V_z\}$
   \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
   \State route every edge $e\in E_z$ on this CDT
   \State rebuild the tiles of $\mathit{levels}[z]$ \label{algln:rebuild}\Comment{Section~\ref{sec:tile-build}}
@@ -385,7 +401,10 @@ the tile pyramid.
         {$z{=}\zlev$\,(\nn${\times}$\nn)};
     }
   \end{tikzpicture}}
-  \caption{The entities rendered on each level without scaling.}
+  \caption{Tile grids and viewports at five pyramid levels. Each
+    screenshot uses its level's display sizes and zoom; the blue grid
+    shows the full world extent. The orange outlines mark the six
+    tiles intersected by the viewport at level~3.}
   \label{fig:tile-pyramid-3d}
 \end{figure}
 
@@ -397,26 +416,44 @@ $Z$, generating new levels, and splitting tiles, until a stopping
 condition is met. Then, while keeping the finest level intact, we
 rebuild the tiles of levels~$0, \ldots, Z-1$ for rendering.
 
-We start from $Z=0$ and grow the pyramid one level at a time. We
-stop as soon as any of three conditions is met:
+Let $w_v$ and $h_v$ be the width and height of node~$v$'s
+axis-aligned bounding box in the original layout, before padding or
+level-dependent scaling. For the non-cluster nodes $V$, define
+\[
+  \bar w=\frac{1}{|V|}\sum_{v\in V}w_v,\qquad
+  \bar h=\frac{1}{|V|}\sum_{v\in V}h_v.
+\]
+These means are computed once over the full graph, not separately
+for each tile or PageRank prefix. The tile side length $\ell_z$ is
+measured in the same world-coordinate units.
+
+We start from $Z=0$; if the root tile already meets the capacity
+condition, no subdivision is needed. Otherwise we grow the pyramid
+one level at a time and stop as soon as any of three conditions is met:
 \begin{enumerate}
 \item every tile at the new level contains at most $\mathcal{C}$
 elements, with default $\mathcal{C}=500$;
-\item the new tile width and height are both below ten times the
-average node width and height;
+\item the completed new level~$z$ satisfies
+  $\ell_z\leq 10\min(\bar w,\bar h)$.
+  Equivalently, the side length is at most ten times both the mean
+  node width and the mean node height; equality triggers the stop.
+  This level is retained as the finest level, $Z=z$;
 \item while generating the tiles of the new finest level, the running
 total of stored tile elements summed over all levels, multiplied by
 $200$~bytes per element, exceeds the memory budget $\mathcal{M}_{\max}$,
-with default $4$~GB; the partial level is then discarded and $Z$ is
+with default $4$~GiB ($2^{32}$ bytes); the partial level is then discarded and $Z$ is
 set to the previous finest level.
 \end{enumerate}
 The third condition is checked incrementally inside the level-build
-loop, so we abort as soon as the memory barrier is reached. On every
+loop. This is a storage estimate, not a bound on the browser's actual
+heap: it does not account for all object overhead, edge-membership
+lists, routing workspace, or GPU buffers, and is not rechecked during
+the subsequent per-level rebuilding. On every
 benchmark graph in Table~\ref{tab:max-per-tile} the first condition
 fires; the second and third are defensive guards that bound depth on
 hypothetical inputs whose finest level cannot be packed within
 $\mathcal{C}=500$.
-\paragraph{Three phases.} Once $Z$ and the tile rectangles are fixed,
+\paragraph{Three phases.} Once $Z$ and the tile squares are fixed,
 each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
 \begin{enumerate}
 \item pick the nodes of level~$z$ with PageRank and possibly enlarge
@@ -437,9 +474,10 @@ PageRank~\cite{page1999pagerank} on~$G$ once, and sort all nodes of
 the graph, $V$, by descending rank. Write $k = Z - z$ for the
 level's depth below the finest level. The candidates for a level of
 depth $k$ are the nodes of the \emph{prefix} of the sorted array of
-length $\lceil |V|/2^k\rceil$. The level's edge set, used by
-Algorithm~\ref{alg:build-pyramid}, is the subset of $E(G)$ whose
-endpoints both lie in this prefix.
+length $\lceil |V|/2^k\rceil$. Let $V_z$ be the nodes accepted from
+this prefix by the overlap filter below. The level graph is
+$G_z=(V_z,E_z)$, where $E_z=\{uv\in E(G):u,v\in V_z\}$; an edge is
+excluded if either endpoint is dropped.
 
 Node positions are inherited from the original layout and never move:
 across levels we change only each node's display size. 
@@ -448,9 +486,11 @@ We add nodes to a level of depth $k$ by walking the level's prefix in
 rank-descending order. The top-ranked node is scaled by $2^k$. We keep
 the node scales non-increasing, but as large as possible, while
 making sure that each next node does not overlap the previously
-selected nodes. If even at its original size the candidate's bounding
-box would overlap an already-accepted node's scaled box, the candidate
-is dropped.
+selected nodes, with the routing padding included in the overlap
+test. Each accepted scale lies between $1$ and the preceding
+accepted scale. If even at scale~$1$ the candidate's padded bounding
+box would overlap an already-accepted node's padded scaled box, the
+candidate is dropped.
 
 Dropping a relatively high-ranked candidate at a coarse level is a
 deliberate compromise: we trade the inclusion of that candidate at
@@ -461,13 +501,17 @@ Figure~\ref{fig:tile-pyramid-3d} shows, it is dropped from the top
 layer because a higher-ranked node, Tyrion, has covered the available
 region. The user still sees that part of the graph as occupied, and
 Arya's individual node appears at a finer level where its box fits.
+The candidate prefixes are nested, but the accepted sets $V_z$
+need not be: overlap filtering is performed independently at each
+level. All nodes are present at the finest level.
 
 \paragraph{Spatial-hash overlap test.}
 A naive overlap test against every previously accepted node would
 dominate the cost of the filter. We instead maintain the accepted
 boxes in a uniform spatial hash whose cell size is chosen so that any
-accepted box, and any candidate's box at the level's maximum scale,
-both fit inside one cell on each axis. Because of this choice, two
+accepted padded box, and any candidate's padded box at the level's
+maximum scale, have width and height at most the cell size.
+Because of this choice, two
 such boxes can overlap only if their center cells differ by at most
 one step on each axis: testing a candidate therefore reduces to
 scanning the accepted boxes registered in the candidate's own cell and
@@ -476,12 +520,12 @@ in the eight cells immediately around it.
 The hash brings little benefit at the coarsest levels, where the
 prefix is short and even a naive scan over the few accepted boxes is
 cheap; it pays off at finer levels, where the prefix grows
-geometrically and a per-candidate constant-time test replaces a linear
-scan over hundreds of already-accepted boxes.  On the layouts we
-tested the expected work per candidate is constant, so the overall
-cost is dominated by the initial sort by PageRank.  In our experiments
-this phase was never a bottleneck: the per-level routing dominates
-the build time at every level we measured.
+geometrically. The number of cells examined per candidate is
+constant, but their occupancy is not bounded; a query costs time
+proportional to the number of boxes in those cells, and the filter
+can still take quadratic time in the prefix length in the worst case.
+The spatial hash is therefore an acceleration heuristic rather than
+a constant-time overlap guarantee.
 
 
 \subsection{Splitting Edges between Tiles}
@@ -491,15 +535,16 @@ for the purpose of this paragraph it is enough to know that each curve
 is a polyline.
 
 The edge-clip generation works as follows. Consider a tile and an edge
-clip whose curve meets the tile boundary only at the curve's
-endpoints. Let the \emph{midlines} of a tile be the horizontal and
+clip contained in the tile. Let the \emph{midlines} of a tile be the horizontal and
 vertical segments through its center; they split the tile into four
-sub-tiles. Cutting the curve with the midlines yields a set of
-sub-clips, each contained in one sub-tile, and each preserves the
-invariant: its curve meets the sub-tile boundary only at its
-endpoints. Because of this invariant, every split reuses the parent
+congruent square sub-tiles. Cutting the curve with the midlines yields a set of
+sub-clips, each contained in one sub-tile. For isolated boundary
+contacts, splitting at tangencies as well as crossings ensures that
+each sub-clip meets the boundary only at its endpoints. Segments
+lying along a midline can be assigned to either incident sub-tile
+using a consistent tie-breaking rule. Every split reuses the parent
 clip's boundary crossings, and only the curve-vs-midline
-intersections need to be computed; no full curve-vs-rectangle clipping
+intersections need to be computed; no full curve-vs-square clipping
 is required. Figure~\ref{fig:clip} illustrates one such split.
 
 \begin{figure}[!tb]
@@ -541,7 +586,7 @@ is required. Figure~\ref{fig:clip} illustrates one such split.
   \end{tikzpicture}
   \caption{An edge clip, drawn as a polyline, from \emph{start} to
     \emph{end} inside a tile. The two red midlines split the tile
-    into four sub-tiles and meet the polyline at the four
+    into four congruent square sub-tiles and meet the polyline at the four
     points $a$, $b$, $c$, $d$; at $d$ the polyline touches the
     horizontal midline without crossing it. Cutting the polyline at
     these points yields five sub-clips $[\mathit{start},a]$,
@@ -554,18 +599,21 @@ is required. Figure~\ref{fig:clip} illustrates one such split.
 When we grow the pyramid in line~\ref{algln:split} of
 Algorithm~\ref{alg:build-pyramid}, each edge clip is already
 contained in its parent tile, so subdivision starts from that
-parent's rectangle. When we prepare the tiles for rendering in
+parent's square. When we prepare the tiles for rendering in
 line~\ref{algln:rebuild} of Algorithm~\ref{alg:build-pyramid}, we
 have the rerouted graph $G_z$, so for each edge of $G_z$ we start
-the subdivision from the top level rectangle.
+the subdivision from the root tile's square.
 
 \paragraph{Bundling edge clips.}
 To reduce the number of elements rendered in a tile, all clips within
-a tile that share the same, or almost the same, pair of endpoints are
+a tile that share the same unordered pair of quantized endpoints are
 bundled into a single clip whose attached edge list accumulates every
-contributing edge; the bundled geometry is taken from the first such
+contributing edge. Each endpoint coordinate is rounded to the nearest
+multiple of $10^{-6}$ world units. The bundled geometry is taken from the first such
 clip encountered during splitting, and the choice is consistent within
-each level. Table~\ref{tab:max-per-tile} reports the resulting maximum
+each level. This endpoint-based test does not bound the deviation
+between the interiors of the original curves and their representative.
+Table~\ref{tab:max-per-tile} reports the resulting maximum
 number of elements rendered in a single tile across the entire pyramid
 for a range of graphs.
 
@@ -580,7 +628,7 @@ for a range of graphs.
   count, which is therefore reported empirically. ``At level''
   is the level on which the maximum tile was found. In the worst
   cases, \texttt{ca-HepPh} and \texttt{ca-CondMat}, the densest tile
-  holds 6--8$\times$ the nominal capacity~$\mathcal{C}$.}
+  holds approximately 5.9--7.3$\times$ the nominal capacity~$\mathcal{C}$.}
 \label{tab:max-per-tile}
 \centering
 \scriptsize
@@ -620,9 +668,9 @@ Euclidean distance between the centroids of its triangles.
 We split routing an edge into two subproblems: a \emph{combinatorial}
 one---which sequence of triangles to cross---and a \emph{geometric}
 one---which exact polyline through that sequence is shortest. The
-geometric step is the classical funnel
-algorithm~\cite{chazelle1982theorem,hershberger1994computing}, which
-pulls the path taut inside the polygon formed by the sleeve triangles.
+classical funnel algorithm computes the geometric step by pulling
+the path taut inside the polygon formed by the sleeve
+triangles~\cite{chazelle1982theorem,hershberger1994computing}.
 
 To obtain the sleeve we run a shortest-path search on~$D$, where
 triangles inside obstacles other than the source and target obstacles
@@ -630,9 +678,11 @@ are excluded. The natural per-edge instantiation is
 A*~\cite{hart1968formal} with the straight-line distance to~$t$ as
 heuristic. When a node has many incident edges, however, running
 independent searches is wasteful. We instead group edges by source~$s$
-and run a single Dijkstra computation per source, expanding until all
-targets are reached and recovering each sleeve by following parent
-pointers. This gives a speedup over A*; for example on Game of Thrones,
+and run a batched Dijkstra search per source. The source obstacle
+is traversable; target triangles are terminal destinations, not
+transit triangles for routes to other targets. Sleeves are recovered
+by following parent pointers. This gives a speedup over A* on the
+social graphs tested; for example on Game of Thrones,
 with 407 nodes and 2\,639 edges, it cuts routing time by $\sim$23\,\%.
 Table~\ref{tab:routing-modes} reports the gain across the full
 benchmark suite.
@@ -651,20 +701,23 @@ with the standard greedy maximum-degree rule: while $H$ still has an
 edge, pick a vertex of maximum degree in~$H$, add it to~$R$, and
 delete it together with its incident edges. Implemented with degree
 buckets, the procedure runs in linear time. Each demand edge is then
-routed from whichever endpoint lies in~$R$. To our knowledge no
+routed from the first of its endpoints selected by the greedy
+procedure; the original direction is restored for rendering.
+Self-loops are handled at their own node. To our knowledge no
 prior edge router exploits a vertex cover of the demand graph in
 this way; many-to-many shortest-path
 frameworks~\cite{knopp2007many} also amortize per-source searches,
 but they take the source set as given and do not reduce it through a
 covering argument. Applying this heuristic reduces the number of
-Dijkstra trees on Game of Thrones from~331, one per distinct source,
+source groups on Game of Thrones from~331, one per distinct source,
 to~198, and on the composers graph with 3\,405 nodes and 13\,832
 edges from~2\,645 to~1\,281, shortening the routing pass by
 $\sim$28\,\% and $\sim$31\,\% respectively.
 
 In addition, before launching the sleeve search for an edge we try routing the
 straight line segment between the source and the target by walking the
-CDT.
+CDT. If it avoids all non-endpoint obstacles, no graph search is
+needed for that edge.
 
 \paragraph{Route quality.}
 To assess route quality, we compared the sleeve router with the
@@ -672,13 +725,17 @@ optimum on the full visibility graph of the padded obstacles, on the
 Game of Thrones layout. The visibility-graph optimum is the shortest
 taut polyline around the obstacles; we computed it by all-pairs
 Dijkstra over the polygon corners and the node centers. This is a
-lower bound on any obstacle-avoiding route. On the $407$-node,
+lower bound for routes with the same endpoints and obstacle
+constraints. We compare raw center-to-center polylines, before
+node-boundary and arrowhead trimming. On the $407$-node,
 $2{,}639$-edge layout the sleeve router has total arc length
-$714.3$\,k arc-length units against $695.1$\,k for the
+$714{,}316$ world-coordinate units against $695{,}107$ for the
 visibility-graph optimum, a ratio of $1.028\times$. The worst
-per-edge ratio is $1.37$, much less than the constrained Delaunay
-triangulation's worst-case stretch $4\pi\sqrt{3}/9 \approx
-2.42$~\cite{bose2006stretch}.
+per-edge ratio is $1.37$. The CDT stretch bound
+$4\pi\sqrt{3}/9 \approx 2.42$~\cite{bose2006stretch} concerns
+paths on triangulation edges, not centroid-weighted dual searches,
+and is not an approximation guarantee for our router. These
+measurements cover one layout only.
 
 \paragraph{Edge hint.}
 We explored a routing variant in which the path generated for an edge
@@ -705,11 +762,13 @@ diagonal is preserved from the uncollapsed geometry. The collapsed
 vertex in Figure~\ref{fig:collapse}(a) is marked in yellow.
 
 After collapse, the funnel sees a wide opening at each endpoint, as in
-Figure~\ref{fig:collapse}(b), and naturally selects the optimal exit
+Figure~\ref{fig:collapse}(b), and selects a shorter exit
 direction. A final arrowhead-trimming step clips the path at the node
 boundary curves. Collapse might cause the resulting path to overlap
-nodes other than the source and the target, but we have found the
-effect to be negligible.
+nodes other than the source and the target. Thus the default
+post-collapse routes do not carry a strict obstacle-avoidance
+guarantee; we have not quantified the frequency or extent of these
+overlaps.
 
 The implementation also offers an optional pass that fits a Bezier segment into each polyline corner to render edges as smooth curves. It is disabled by default for performance: the polyline rendering is fast and visually acceptable, so we trade the smoother curves for routing speed.
 
@@ -740,7 +799,8 @@ is the standard component used by online tile-map renderers: it
 tracks the viewport, determines which tiles are needed at the current
 zoom, and asynchronously requests them through a user-supplied
 \texttt{getTileData} callback, caching the results across frames so
-that subsequent pans within the cache require no further work.
+that subsequent pans within the cache avoid tile-data retrieval,
+although visibility selection and rendering still run.
 
 \msagljs{} integrates with this component at construction time by
 exposing the precomputed pyramid as the \texttt{TileLayer}'s zoom
@@ -751,17 +811,19 @@ of axis-aligned tile indices and, for each tile it needs to display,
 calls \texttt{getTileData}. The renderer translates each such request
 back into a tile of the corresponding pyramid level and returns its
 precomputed nodes, edge clips, edge labels, and arrowheads. The
-mapping is one-to-one, so no geometric work is performed at view
+mapping is one-to-one, so no rerouting or tile subdivision is performed at view
 time: panning shifts the visible window over the tile cache, and
-zooming displays tiles from the adjacent level using
-\texttt{TileLayer}'s built-in cross-fade.
+zooming selects tiles from the corresponding level. The renderer uses
+\texttt{TileLayer}'s \texttt{no-overlap} refinement strategy, not an
+animated cross-fade between levels.
 
 The rendered geometry depends only on the zoom level and does not
 change with the viewport, except for the clipping to the visible
 window. Within each level, the displayed nodes are the ones chosen
 for that level by the construction of Section~\ref{sec:filter}, and
-the displayed edges are the geodesics around those nodes,
-computed by the sleeve router of Section~\ref{sec:sleeve-routing}.
+the displayed edges use the sleeve routes and bundled edge clips
+computed for those nodes, subject to the geometric limitations
+described in Sections~\ref{sec:tile-build} and~\ref{sec:collapse}.
 
 \paragraph{Interaction.}
 The renderer supports pan, zoom, and hover highlighting of nodes and
@@ -775,7 +837,7 @@ result.
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. All experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPSep-CoLa, and the tile pyramid is built with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
+We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. The loading and routing-mode experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPSep-CoLa, and the loading benchmark builds the tile pyramid with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
 
 Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual, Section~\ref{sec:sleeve}; \emph{Tiling}, the build of the tile pyramid, Section~\ref{sec:tiling}, which includes the per-level routing; and \emph{Total}, the end-to-end loading time including parsing.
 
@@ -812,7 +874,16 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
   \end{tabular}
 \end{table}
 
-The CDT phase contributes negligibly to the routing column---from 6\,ms on Game of Thrones to about half a second on the largest graphs---so virtually all of \emph{Routing} is the Dijkstra-tree sleeve search, with the vertex-cover heuristic of Section~\ref{sec:sleeve} reducing the number of trees we run. Even on graphs with hundreds of thousands of edges (\texttt{ca-CondMat}, \texttt{ca-HepPh}, \texttt{deezer\_europe}) the full pipeline finishes in a few minutes; this is a one-time build cost. The resulting tile pyramid already contains the per-level routes, so panning and zooming only fetch and render the precomputed tiles, with no rerouting at view time.
+CDT construction takes about 6\,ms on Game of Thrones and at most
+420\,ms in this benchmark. It accounts for about $8\,\%$ of
+\emph{Routing} on Game of Thrones and at most $6.4\,\%$ on the other
+graphs. The remaining time is spent in the routing pass, which
+includes sleeve search and path extraction, with the vertex-cover
+heuristic of Section~\ref{sec:sleeve} reducing the number of trees.
+The full pipeline finishes in under three minutes on all nine
+graphs; this is a one-time cost for a fixed layout. The resulting
+tile pyramid already contains the per-level routes, so panning and
+zooming fetch and render precomputed tiles without rerouting.
 
 Table~\ref{tab:routing-modes} isolates the contribution of the two
 source-side optimizations of Section~\ref{sec:sleeve}: batched
@@ -820,21 +891,23 @@ Dijkstra trees over per-edge A* and the vertex-cover heuristic on top
 of that.  Each row times a single sleeve-search pass run after layout,
 with the constrained Delaunay triangulation excluded so that only the
 search costs are compared. The batched Dijkstra trees outperform
-per-edge A* on every social graph, with the speedup growing with the
-average degree and reaching $+63$\,\% on \texttt{facebook\_combined}
-and $+48$\,\% on \texttt{ca-HepPh}; the vertex-cover heuristic yields
-a further $11$--$42$\,\% reduction on the same graphs. The Delaunay
-mesh \texttt{delaunay\_n15} is the only outlier: the degrees of the
-nodes are small and the shortest paths do not extensively overlap,
-so neither optimization has a chance to improve performance.
+per-edge A* on every social graph tested, reducing elapsed time
+by up to $63$\,\% on \texttt{facebook\_combined}
+and $48$\,\% on \texttt{ca-HepPh}; the vertex-cover heuristic yields
+a further $11$--$42$\,\% reduction across the social graphs.
+On the Delaunay mesh \texttt{delaunay\_n15}, batching alone is
+$18$\,\% slower than A*. Vertex-cover reorientation recovers
+$7$\,\% relative to batching alone, but remains about $10$\,\%
+slower than A*. Low degree and limited shared search regions are
+plausible explanations, not separately measured causes.
 
 \begin{table}[t]
   \caption{Sleeve-search times of the three routing modes on the
     benchmark graphs of Table~\ref{tab:perf}, in headless
-    Chrome~148. Columns: \emph{Srcs}, the number of distinct edge
-    endpoints in the demand graph---one per source for the per-edge
-    A* baseline; \emph{VC}, the number of Dijkstra trees actually
-    launched after the greedy maximum-degree vertex-cover
+    Chrome~148. Columns: \emph{Srcs}, the number of distinct source
+    endpoints in the original edge orientation, used to group DJ
+    queries (A* still searches per edge); \emph{VC}, the number of
+    source groups after the greedy maximum-degree vertex-cover
     reorientation of Section~\ref{sec:sleeve}; \emph{A*}, wall-clock
     seconds of one full sleeve-search pass with per-edge A*\
     (straight-line distance to the target as heuristic);
@@ -842,20 +915,21 @@ so neither optimization has a chance to improve performance.
     mode---one tree per source, expanding until all of that source's
     targets are reached; \emph{VC\_DJ}, wall-clock seconds with the
     vertex-cover-reoriented Dijkstra-tree mode---same as DJ but with
-    only \emph{VC}~roots; \emph{DJ/A*}~$=$~$(\text{A*}-\text{DJ})/\text{A*}$,
-    speedup of DJ over A*; \emph{VC/DJ}~$=$~$(\text{DJ}-\text{VC\_DJ})/\text{DJ}$,
-    additional speedup of VC\_DJ over DJ. The CDT-construction phase,
+    only \emph{VC}~roots (groups resolved entirely by straight-line
+    tests need no tree); \emph{DJ red.}~$=$~$(\text{A*}-\text{DJ})/\text{A*}$,
+    relative time reduction of DJ over A*; \emph{VC red.}~$=$~$(\text{DJ}-\text{VC\_DJ})/\text{DJ}$,
+    additional time reduction of VC\_DJ over DJ. The CDT-construction phase,
     identical across modes, is excluded so that only the search costs
     are compared.}
   \label{tab:routing-modes}
   \centering
   \scriptsize
-  \setlength{\tabcolsep}{2pt}
+  \setlength{\tabcolsep}{1.8pt}
   \begin{tabular}{@{}lrrrrrrr@{}}
     \toprule
-    & & & \multicolumn{3}{c}{Time (s)} & \multicolumn{2}{c}{Speedup} \\
+    & & & \multicolumn{3}{c}{Time (s)} & \multicolumn{2}{c}{Time reduction} \\
     \cmidrule(lr){4-6}\cmidrule(l){7-8}
-    Graph & Srcs & VC & A* & DJ & VC\_DJ & DJ/A* & VC/DJ \\
+    Graph & Srcs & VC & A* & DJ & VC\_DJ & DJ red. & VC red. \\
     \midrule
     gameofthrones      &     331 &     198 &   0.077 &   0.059 &   0.043 & $+23$\,\% & $+28$\,\% \\
     composers          &  2\,645 &  1\,281 &   2.60  &   2.14  &   1.49  & $+18$\,\% & $+31$\,\% \\
@@ -874,38 +948,45 @@ so neither optimization has a chance to improve performance.
 We test how smoothly a user can browse a freshly loaded graph in the
 browser. On the same M4~Max laptop as Tables~\ref{tab:perf} and
 \ref{tab:routing-modes}, a script loads a graph, waits for the tile
-pyramid to build, and then plays back twelve dives. Each dive picks
+pyramid to build, and then runs two trials of three dives each
+(six dives per graph). Each dive picks
 a random point inside the laid-out graph, recenters the view on that
 point, zooms from the coarsest view all the way in to the finest
 detail in one second, then zooms back out to the coarsest view in
-another second. The twelve random points are independent and the
-dives run back to back.
+another second. The three dives in each trial run back to back.
+These browsing runs use separately built pyramids; their recorded
+level counts are reported in Table~\ref{tab:smoothness} and differ
+from the natural-stop builds in Table~\ref{tab:max-per-tile}.
+The two tables should therefore not be read as measurements of
+identical tile pyramids.
 
 While the dives play, the script measures three things on the
-browser side. First, how often the screen actually refreshes: at
-$60$\,Hz the screen refreshes every $16.7$\,ms, and a longer gap is
-visible as a stutter. We report the $95$th percentile of the gap
-between successive refreshes, the value below which $95\,\%$ of
-refreshes fall. Second, how often the browser pauses for more than
-$50$\,ms on a single block of work; this is the standard browser
-metric of a ``long task'' and each one freezes the page. Third, at
+browser side. First, the interval between successive animation-frame
+callbacks, whose nominal spacing at $60$\,Hz is $16.7$\,ms. We report
+the arithmetic mean of the two trial-specific $95$th percentiles,
+not a pooled percentile or a direct measurement of displayed frames.
+Second, the number and total duration of main-thread tasks lasting
+more than $50$\,ms, summed over both trials. Such ``long tasks'' can
+delay rendering and input handling. Third, at
 the deepest point of every dive, how many graphical objects the
 browser must draw, that is, nodes, edge clips, labels, and
-arrowheads, summed over the tiles that fall inside the viewport.
-This last number is a proxy for how hard the GPU has to work each
-frame. Table~\ref{tab:smoothness} reports the result.
+arrowheads, summed over visible tiles intersecting the viewport.
+We report the maximum of these six samples. This count is a proxy
+for rendering load, not a GPU-time measurement or a maximum over
+all frames. Table~\ref{tab:smoothness} reports the result.
 
 \begin{table}[t]
   \caption{Browsing-smoothness measurements on the benchmark graphs.
-    For each graph the script plays back twelve dives; each dive picks
+    For each graph the script runs two trials of three dives; each dive picks
     a random point inside the laid-out graph, recenters on it, and
     zooms from the coarsest view to the finest and back in two
-    seconds. \emph{$Z$}, number of tile-pyramid levels built;
-    \emph{LT}, number of main-thread pauses longer than $50$\,ms
-    observed during the twelve dives; \emph{LT total}, the total
-    duration of those pauses, in milliseconds; \emph{Frame p95}, the
-    $95$th percentile of the gap between successive on-screen
-    refreshes during the twelve dives, in milliseconds;
+    seconds. \emph{Levels}, number of tile-pyramid levels built
+    ($Z+1$);
+    \emph{LT}, number of main-thread tasks longer than $50$\,ms
+    summed over both trials; \emph{LT total}, their total
+    duration, in milliseconds; \emph{Frame p95}, the
+    mean of the two trial-specific $95$th percentiles of
+    animation-frame callback intervals, in milliseconds;
     \emph{Elts max}, the largest number of graphical objects,
     that is, nodes, edge clips, labels, and arrowheads, that the
     browser had to draw at the deepest point of any dive.}
@@ -915,7 +996,7 @@ frame. Table~\ref{tab:smoothness} reports the result.
   \setlength{\tabcolsep}{2pt}
   \begin{tabular}{@{}lrrrrrrr@{}}
     \toprule
-    Graph & $|V|$ & $|E|$ & $Z$ & LT & LT total & Frame p95 & Elts max \\
+    Graph & $|V|$ & $|E|$ & Levels & LT & \shortstack{LT\\total} & \shortstack{Frame\\p95} & \shortstack{Elts\\max} \\
     \midrule
     gameofthrones      &     407 &   2\,639 & 5 &  0 &     0 &  17.4 &   2\,567 \\
     composers          &  3\,405 &  13\,832 & 9 &  1 &    51 &  18.2 &      497 \\
@@ -930,20 +1011,30 @@ frame. Table~\ref{tab:smoothness} reports the result.
   \end{tabular}
 \end{table}
 
-Across all nine graphs the dives stay close to the $60$\,Hz target.
-On every graph, $95\,\%$ of the gaps between successive refreshes
-are at most $18.4$\,ms, only $1.7$\,ms over the ideal $16.7$\,ms gap
-at $60$\,Hz and too small to be perceived as a stutter. The
-browser pauses for more than $50$\,ms only a handful of times across
-the twelve dives on the three densest graphs, \texttt{ca-HepPh},
-\texttt{ca-CondMat}, and \texttt{deezer\_europe}, and not at all on
-the smaller ones, so the moments of stutter that do happen are short
-and rare. At the deepest zoom, the browser is asked to draw at most
+The mean trial-specific frame-interval percentiles are
+$17.4$--$18.4$\,ms after rounding, close to the nominal
+$16.7$\,ms interval at $60$\,Hz. These statistics do not rule out
+longer stalls or establish perceptual smoothness. There are nine,
+five, and three long tasks on \texttt{ca-HepPh},
+\texttt{ca-CondMat}, and \texttt{deezer\_europe}, respectively,
+one on \texttt{composers}, and none on the remaining graphs.
+At the sampled deepest zooms, the browser is asked to draw at most
 $2\,567$ objects on \texttt{gameofthrones} and at most $2\,505$ on
 \texttt{deezer\_europe} even though the latter graph has $35$ times
 more edges. This is the property the pyramid is designed to deliver:
-how hard the GPU has to work each frame depends on what is currently
-on screen, not on the total size of the graph.
+the draw workload is tied to visible tile contents rather than
+requiring the full graph to be drawn each frame. This is an
+empirical observation, not a graph-size-independent complexity bound.
+
+\paragraph{Evaluation scope.}
+The loading and routing-mode tables report individual runs, not
+repeated-run means with confidence intervals. The browsing experiment
+covers only six sampled locations per graph on one machine, and
+some samples contain no graph entities. It does not establish
+worst-case frame times, performance on lower-end hardware, or user
+task effectiveness. We also lack a controlled comparison with
+non-tiled rendering and a quantitative measure of visual stability
+across level changes.
 
 %% ═══════════════════════════════════════════════════════════════════
 \section{Conclusion}
@@ -956,12 +1047,13 @@ pyramid up front, which is expensive and bounds the size of graphs we
 can handle. A natural next step is to build only the first few levels
 quickly and hand them to the renderer; the remaining levels would be
 built lazily as the user browses the graph. This
-would lower the time-to-first-frame and lift the limit on graph size.
+could lower the time-to-first-frame and reduce resident tile storage,
+but layout, routing, and graph storage would still limit graph size.
 
 A second challenge is that some tiles can contain many more
 elements than the capacity parameter~$\mathcal{C}$ that guides the
 build. Table~\ref{tab:max-per-tile} reports densest tiles holding
-6--8$\times$ the nominal $\mathcal{C}$ in the worst cases, which leaves
+approximately 5.9--7.3$\times$ the nominal $\mathcal{C}$ in the worst cases, which leaves
 the rendering and interaction cost uneven across the viewport.
 Enforcing an actual per-tile budget remains an open problem.
 
