@@ -408,7 +408,7 @@ the tile pyramid.
   \label{fig:tile-pyramid-3d}
 \end{figure}
 
-\paragraph{How the index of the finest layer, $Z$, is chosen.}
+\paragraph{How the index of the finest level, $Z$, is chosen.}
 For this task we build the pyramid without element filtering: every
 level contains all graph entities. Starting from the root tile, we
 keep adding levels and splitting tiles until a stopping condition is
@@ -445,7 +445,7 @@ The third condition is checked incrementally inside the level-build
 loop. This is a storage estimate, not a bound on the browser's actual
 heap: it does not account for all object overhead, edge-membership
 lists, routing workspace, or GPU buffers, and is not rechecked during
-the subsequent per-level rebuilding. In out experimenst on every
+the subsequent per-level rebuilding. In our experiments, on every
 benchmark graph in Table~\ref{tab:max-per-tile} the first condition
 fires; the second and third are defensive guards that bound $Z$ on
 hypothetical inputs with extremely densely positioned entities.
@@ -466,26 +466,17 @@ whole pipeline.
 
 \subsection{PageRank-Guided Level Construction}
 \label{sec:filter}
-Before filling the level's tiles for rendering we sort elements of $V$
-by PageRank~\cite{page1999pagerank} in descending order. From now on
-we think of $V$ as a sorted array.
-%&The nodes populating level $z$ belong to the prefix of
-%$V$ of length $\lceil |V|/2^k\rceil$, where $k = Z - z$. Let $V_z$ be
-%the nodes accepted from this prefix by the overlap filter described
-%below. The level graph is $G_z=(V_z,E_z)$, where $E_z=\{uv\in
-%E(G):u,v\in V_z\}$: only the edges connecting two level nodes are
-%included into the level as well.
+We compute PageRank~\cite{page1999pagerank} on $G$ once and sort the
+nodes by descending rank; from now on we think of $V$ as this sorted
+array.
 
-%Node positions are inherited from the original layout and never move:
-%across levels we change only each node's display size. 
-
-We add nodes to level $z$ by walking the first
+We add nodes to level $z$ by walking its \emph{prefix}: the first
 $\lceil|V|/2^{Z-z}\rceil$ nodes of $V$. We do not change the node
-positions inherited from the finest level but try to increase the
+positions inherited from the finest level, but we try to increase the
 scale of the nodes. The top-ranked node is scaled by $2^{Z-z}$. We keep the node
 scales non-increasing, but as large as possible, while making sure
 that each next node does not overlap the previously selected nodes of
-the level with the routing padding included in the overlap test. Each
+the level, with the routing padding included in the overlap test. Each
 accepted scale lies between $1$ and the preceding accepted scale. If
 even at scale~$1$ the candidate's padded bounding box would overlap an
 already-accepted node's padded scaled box, the candidate is dropped.
@@ -495,14 +486,17 @@ deliberate compromise: we trade the inclusion of that candidate at
 this level for the invariant that the rendered nodes at every level
 remain pairwise disjoint. The cost is small in practice. Consider
 Arya's node in the \emph{Game of Thrones} graph: as
-Figure~\ref{fig:tile-pyramid-3d} shows, it is dropped from the top
-layer because a higher-ranked node, Tyrion, has covered the available
-region. The user still sees that part of the graph as occupied, and
-Arya's individual node appears at a finer level where its box fits.
+Figure~\ref{fig:tile-pyramid-3d} shows, it is dropped from the
+coarsest level because a higher-ranked node, Tyrion, has covered the
+available region. The user still sees that part of the graph as
+occupied, and Arya's individual node appears at a finer level where
+its box fits. All nodes are present at the finest level.
 
-All nodes are present at the finest level.
-
-The edges of the level are those connecting two level nodes.
+Let $V_z$ be the nodes accepted at level $z$. The level graph is
+$G_z=(V_z,E_z)$, where $E_z=\{uv\in E(G): u,v\in V_z\}$: the edges of
+the level are those connecting two level nodes. The candidate prefixes
+are nested, but the accepted sets $V_z$ are not necessarily nested:
+overlap filtering is performed independently at each level.
 
 \paragraph{Spatial-hash overlap test.}
 A naive overlap test against every previously accepted node would
