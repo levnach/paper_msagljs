@@ -409,12 +409,12 @@ the tile pyramid.
 \end{figure}
 
 \paragraph{How the index of the finest layer, $Z$, is chosen.}
-To choose $Z$, we build the pyramid without any element
-filtering: every level contains all graph entities. Starting from the
-root tile, we keep adding levels and splitting tiles until a stopping
-condition is met; the index of the finest level built this way is
-$Z$. The finest level is kept as is, while the tiles of
-levels~$0, \ldots, Z-1$ are later rebuilt as described below.
+For this task we build the pyramid without element filtering: every
+level contains all graph entities. Starting from the root tile, we
+keep adding levels and splitting tiles until a stopping condition is
+met; the index of the finest level built this way is $Z$. The finest
+level is kept as is, while the tiles of levels~$0, \ldots, Z-1$ are
+later rebuilt as described below.
 
 Let $w_v$ and $h_v$ be the width and height of node~$v$'s
 axis-aligned bounding box in the original layout, before padding or
@@ -423,9 +423,7 @@ level-dependent scaling. For the non-cluster nodes $V$, define
   \bar w=\frac{1}{|V|}\sum_{v\in V}w_v,\qquad
   \bar h=\frac{1}{|V|}\sum_{v\in V}h_v.
 \]
-These means are computed once over the full graph, not separately
-for each tile or PageRank prefix. The tile side length $\ell_z$ is
-measured in the same world-coordinate units.
+We denote by $\ell_k$ the length of a tile side on level $k$.
 
 We start from $Z=0$; if the root tile already meets the capacity
 condition, no subdivision is needed. Otherwise we grow the pyramid
@@ -438,8 +436,7 @@ elements, with default $\mathcal{C}=500$;
   Equivalently, the side length is at most ten times both the mean
   node width and the mean node height; equality triggers the stop.
   This level is retained as the finest level, $Z=z$;
-\item while generating the tiles of the new finest level, the running
-total of stored tile elements summed over all levels, multiplied by
+\item the total of stored tile elements summed over all levels, multiplied by
 $200$~bytes per element, exceeds the memory budget $\mathcal{M}_{\max}$,
 with default $4$~GiB ($2^{32}$ bytes); the partial level is then discarded and $Z$ is
 set to the previous finest level.
@@ -448,13 +445,13 @@ The third condition is checked incrementally inside the level-build
 loop. This is a storage estimate, not a bound on the browser's actual
 heap: it does not account for all object overhead, edge-membership
 lists, routing workspace, or GPU buffers, and is not rechecked during
-the subsequent per-level rebuilding. On every
+the subsequent per-level rebuilding. In out experimenst on every
 benchmark graph in Table~\ref{tab:max-per-tile} the first condition
-fires; the second and third are defensive guards that bound depth on
-hypothetical inputs whose finest level cannot be packed within
-$\mathcal{C}=500$.
-\paragraph{Three phases.} Once $Z$ and the tile squares are fixed,
-each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three phases:
+fires; the second and third are defensive guards that bound $Z$ on
+hypothetical inputs with extremely densely positioned entities.
+\paragraph{Three phases.} Once $Z$ is fixed,
+each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three
+phases:
 \begin{enumerate}
 \item pick the nodes of level~$z$ with PageRank and possibly enlarge
   them, Section~\ref{sec:filter};
@@ -469,28 +466,29 @@ whole pipeline.
 
 \subsection{PageRank-Guided Level Construction}
 \label{sec:filter}
-Before filling the level's tiles for rendering we run
-PageRank~\cite{page1999pagerank} on~$G$ once, and sort all nodes of
-the graph, $V$, by descending rank. Write $k = Z - z$ for the
-level's depth below the finest level. The candidates for a level of
-depth $k$ are the nodes of the \emph{prefix} of the sorted array of
-length $\lceil |V|/2^k\rceil$. Let $V_z$ be the nodes accepted from
-this prefix by the overlap filter below. The level graph is
-$G_z=(V_z,E_z)$, where $E_z=\{uv\in E(G):u,v\in V_z\}$; an edge is
-excluded if either endpoint is dropped.
+Before filling the level's tiles for rendering we sort elements of $V$
+by PageRank~\cite{page1999pagerank} in descending order. From now on
+we think of $V$ as a sorted array.
+%&The nodes populating level $z$ belong to the prefix of
+%$V$ of length $\lceil |V|/2^k\rceil$, where $k = Z - z$. Let $V_z$ be
+%the nodes accepted from this prefix by the overlap filter described
+%below. The level graph is $G_z=(V_z,E_z)$, where $E_z=\{uv\in
+%E(G):u,v\in V_z\}$: only the edges connecting two level nodes are
+%included into the level as well.
 
-Node positions are inherited from the original layout and never move:
-across levels we change only each node's display size. 
+%Node positions are inherited from the original layout and never move:
+%across levels we change only each node's display size. 
 
-We add nodes to a level of depth $k$ by walking the level's prefix in
-rank-descending order. The top-ranked node is scaled by $2^k$. We keep
-the node scales non-increasing, but as large as possible, while
-making sure that each next node does not overlap the previously
-selected nodes, with the routing padding included in the overlap
-test. Each accepted scale lies between $1$ and the preceding
-accepted scale. If even at scale~$1$ the candidate's padded bounding
-box would overlap an already-accepted node's padded scaled box, the
-candidate is dropped.
+We add nodes to level $z$ by walking the first
+$\lceil|V|/2^{Z-z}\rceil$ nodes of $V$. We do not change the node
+positions inherited from the finest level but try to increase the
+scale of the nodes. The top-ranked node is scaled by $2^{Z-z}$. We keep the node
+scales non-increasing, but as large as possible, while making sure
+that each next node does not overlap the previously selected nodes of
+the level with the routing padding included in the overlap test. Each
+accepted scale lies between $1$ and the preceding accepted scale. If
+even at scale~$1$ the candidate's padded bounding box would overlap an
+already-accepted node's padded scaled box, the candidate is dropped.
 
 Dropping a relatively high-ranked candidate at a coarse level is a
 deliberate compromise: we trade the inclusion of that candidate at
@@ -501,9 +499,10 @@ Figure~\ref{fig:tile-pyramid-3d} shows, it is dropped from the top
 layer because a higher-ranked node, Tyrion, has covered the available
 region. The user still sees that part of the graph as occupied, and
 Arya's individual node appears at a finer level where its box fits.
-The candidate prefixes are nested, but the accepted sets $V_z$
-need not be: overlap filtering is performed independently at each
-level. All nodes are present at the finest level.
+
+All nodes are present at the finest level.
+
+The edges of the level are those connecting two level nodes.
 
 \paragraph{Spatial-hash overlap test.}
 A naive overlap test against every previously accepted node would
