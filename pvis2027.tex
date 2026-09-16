@@ -409,12 +409,12 @@ the tile pyramid.
 \end{figure}
 
 \paragraph{How the index of the finest layer, $Z$, is chosen.}
-We treat the tiles differently when calculating $Z$ and when preparing
-for rendering. There is no element filtering in the former case: all
-graph entities are represented in each level. We continue increasing
-$Z$, generating new levels, and splitting tiles, until a stopping
-condition is met. Then, while keeping the finest level intact, we
-rebuild the tiles of levels~$0, \ldots, Z-1$ for rendering.
+To choose $Z$, we build the pyramid without any element
+filtering: every level contains all graph entities. Starting from the
+root tile, we keep adding levels and splitting tiles until a stopping
+condition is met; the index of the finest level built this way is
+$Z$. The finest level is kept as is, while the tiles of
+levels~$0, \ldots, Z-1$ are later rebuilt as described below.
 
 Let $w_v$ and $h_v$ be the width and height of node~$v$'s
 axis-aligned bounding box in the original layout, before padding or
