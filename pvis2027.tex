@@ -294,7 +294,8 @@ the tile pyramid.
 \State $Z \gets z$;\quad $V_Z \gets V(G)$;\quad $s_v^{(Z)} \gets 1$ for all $v\in V_Z$
 \State $V_{\mathrm{PR}} \gets$ nodes of $G$ sorted by descending PageRank
 \For{$z = Z-1$ \textbf{down to} $0$}
-  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(V_{\mathrm{PR}},\, \lceil |V|/2^{Z-z}\rceil)$ \Comment{Section~\ref{sec:filter}}
+  \State $P_z \gets$ first $\lceil |V|/2^{Z-z}\rceil$ nodes of $V_{\mathrm{PR}}$, restricted to $V_{z+1}$
+  \State $(V_z, \{s_v^{(z)}\}) \gets$ \textsc{SelectTopKWithAdaptiveScale}$(P_z)$ \Comment{Section~\ref{sec:filter}}
   \State $E_z \gets \{uv\in E(G): u,v\in V_z\}$
   \State build a CDT from the inflated polylines of $V_z$ at scales $\{s_v^{(z)}\}$
   \State route every edge $e\in E_z$ on this CDT
@@ -453,8 +454,9 @@ hypothetical inputs with extremely densely positioned entities.
 each coarser level $z=Z{-}1, Z{-}2, \dots, 0$ is built in three
 phases:
 \begin{enumerate}
-\item pick the nodes of level~$z$ with PageRank and possibly enlarge
-  them, Section~\ref{sec:filter};
+\item choose some of the nodes of level~$z+1$ as the nodes of
+  level~$z$, guided by PageRank, and possibly enlarge them,
+  Section~\ref{sec:filter};
 \item reroute the edges of $G_z$ around the resulting obstacles,
   Section~\ref{sec:sleeve-routing};
 \item recompute the per-tile edge clips on level $z$,
@@ -470,8 +472,10 @@ We compute PageRank~\cite{page1999pagerank} on $G$ once and sort the
 nodes by descending rank; from now on we think of $V$ as this sorted
 array.
 
-We add nodes to level $z$ by walking its \emph{prefix}: the first
-$\lceil|V|/2^{Z-z}\rceil$ nodes of $V$. We do not change the node
+The levels are built from fine to coarse. We add nodes to level $z$
+by walking its \emph{prefix}: the first $\lceil|V|/2^{Z-z}\rceil$
+nodes of $V$, skipping the nodes that were not accepted at
+level~$z+1$. We do not change the node
 positions inherited from the finest level, but we try to increase the
 scale of the nodes. The top-ranked node is scaled by $2^{Z-z}$. We keep the node
 scales non-increasing, but as large as possible, while making sure
@@ -485,30 +489,92 @@ Dropping a relatively high-ranked candidate at a coarse level is a
 deliberate compromise: we trade the inclusion of that candidate at
 this level for the invariant that the rendered nodes at every level
 remain pairwise disjoint. The cost is small in practice. Consider
-Arya's node in the \emph{Game of Thrones} graph: as
-Figure~\ref{fig:tile-pyramid-3d} shows, it is dropped from the
-coarsest level because a higher-ranked node, Tyrion, has covered the
-available region. The user still sees that part of the graph as
-occupied, and Arya's individual node appears at a finer level where
-its box fits. All nodes are present at the finest level.
+Cersei's node in the \emph{Game of Thrones} graph: it is dropped from
+the coarsest level because a higher-ranked node, Tyrion, has covered
+the available region. The user still sees that part of the graph as
+occupied, and Cersei's individual node appears on the next, finer
+level, where its box fits. All nodes are present at the finest level.
 
 Let $V_z$ be the nodes accepted at level $z$. The level graph is
 $G_z=(V_z,E_z)$, where $E_z=\{uv\in E(G): u,v\in V_z\}$: the edges of
-the level are those connecting two level nodes. The candidate prefixes
-are nested, but the accepted sets $V_z$ are not necessarily nested:
-overlap filtering is performed independently at each level.
+the level are those connecting two level nodes. Because the
+candidates for level $z$ are drawn from the nodes accepted at
+level~$z+1$, the accepted sets are nested: $V_z\subseteq V_{z+1}$.
+A node visible at some level therefore stays visible at every finer
+level. The restriction also speeds up the filter: a node rejected at
+some level is not reconsidered at the coarser ones.
 
 \paragraph{Spatial-hash overlap test.}
-A naive overlap test against every previously accepted node would
-dominate the cost of the filter. We instead maintain the accepted
-boxes in a uniform spatial hash whose cell size is chosen so that any
-accepted padded box, and any candidate's padded box at the level's
-maximum scale, have width and height at most the cell size.
-Because of this choice, two
-such boxes can overlap only if their center cells differ by at most
-one step on each axis: testing a candidate therefore reduces to
-scanning the accepted boxes registered in the candidate's own cell and
-in the eight cells immediately around it.
+A naive overlap test against every previously accepted node takes
+time quadratic in the number of nodes to position and would
+dominate the cost of the filter. We view the plane as
+subdivided into a conceptual uniform grid of square cells of
+side~$c$: the cell of a point $(x,y)$ is the integer pair
+$(\lfloor x/c\rfloor, \lfloor y/c\rfloor)$, and the grid itself is
+never built. Instead, every accepted box is stored in a hash table
+keyed by the cell of its center~\cite{teschner2003optimized}
+(Figure~\ref{fig:spatial-hash}). Only non-empty cells occupy memory,
+so the storage is proportional to the number of accepted boxes,
+independent of the layout extent. The cell side is fixed per level as
+$c = 2^{Z-z} d_{\max} + 2m$, where $d_{\max}$ is the largest among
+the widths~$w_v$ and heights~$h_v$ of the level's candidates~$v$,
+and $m$ is the margin by which each box side is padded in the
+overlap test. Since $2^{Z-z}$ is the level's maximum
+scale, no tested box, accepted or candidate, is wider or taller than
+one cell. Each
+box then extends at most half a cell side from its center, so the
+centers of two overlapping boxes lie less than one cell side apart on
+each axis, and their cells are identical or adjacent. A box
+registered two or more cells away cannot intersect the candidate. Testing a candidate reduces to nine
+hash-table queries.
+
+\begin{figure}[tb]
+  \centering
+  \resizebox{0.9\linewidth}{!}{%
+  \begin{tikzpicture}[x=1cm,y=1cm]
+    \def\c{2.0}
+    % 3x3 neighborhood of the candidate's cell
+    \fill[black!8] (\c,0) rectangle (4*\c,3*\c);
+    % occupied cells: cells holding the center of a stored box
+    \fill[yellow!45] (3*\c,\c) rectangle (4*\c,2*\c);
+    \fill[yellow!45] (0,\c) rectangle (\c,2*\c);
+    \draw[step=\c, black!45, thin] (0,0) grid (4*\c,3*\c);
+    \draw[black!70, dashed, thick] (\c,0) rectangle (4*\c,3*\c);
+    \draw[<->, black!70] (0,-0.3) -- (\c,-0.3)
+      node[midway, below, font=\scriptsize] {cell side $c$};
+    % candidate: padded box at the level's maximum scale (one full
+    % cell in extent) with the node ellipse inside
+    \draw[blue, thick, fill=blue!12] (3.95,2.5) rectangle (5.75,3.7);
+    \draw[blue, fill=blue!25] (4.85,3.1) ellipse [x radius=0.72, y radius=0.44];
+    \fill[blue] (4.85,3.1) circle (1.5pt);
+    \node[blue, below, font=\small] at (4.25,2.5) {$v$};
+    % smaller accepted box in an adjacent cell; the padded boxes overlap
+    \draw[green!50!black, thick, fill=green!15, fill opacity=0.7]
+      (5.7,2.45) rectangle (7.0,3.35);
+    \draw[green!50!black, fill=green!25] (6.35,2.9) ellipse [x radius=0.5, y radius=0.32];
+    \fill[green!50!black] (6.35,2.9) circle (1.5pt);
+    \node[green!50!black, above, font=\small] at (6.6,3.38) {$u_1$};
+    % small accepted box stored two cells away: cannot intersect the candidate
+    \draw[black!60, thick, fill=black!10] (0.4,2.65) rectangle (1.4,3.35);
+    \draw[black!60, fill=black!20] (0.9,3.0) ellipse [x radius=0.38, y radius=0.26];
+    \fill[black!60] (0.9,3.0) circle (1.5pt);
+    \node[black!60, above, font=\small] at (0.9,3.38) {$u_2$};
+  \end{tikzpicture}}
+  \caption{The spatial hash of the overlap filter. Nodes are drawn as
+    ellipses; the filter tests their padded boxes (rectangles), each
+    stored under the cell containing its center (dots). Cells that
+    hold a stored box are tinted yellow. The cell side~$c$ equals the
+    full extent of the largest box the filter can test, so no tested
+    box is wider or taller than one cell; the candidate~$v$ is drawn
+    at this extreme, while accepted boxes are typically smaller. If
+    two boxes overlap, as the boxes of $v$ and~$u_1$ do, their
+    centers lie less than $c$ apart on each axis, so their cells are
+    identical or adjacent. Hence $v$ is tested only against the boxes
+    stored in the shaded $3{\times}3$ neighborhood of its center
+    cell; a box stored outside it, such as $u_2$'s, cannot
+    intersect~$v$'s.}
+  \label{fig:spatial-hash}
+\end{figure}
 
 The hash brings little benefit at the coarsest levels, where the
 prefix is short and even a naive scan over the few accepted boxes is
@@ -621,7 +687,7 @@ for a range of graphs.
   count, which is therefore reported empirically. ``At level''
   is the level on which the maximum tile was found. In the worst
   cases, \texttt{ca-HepPh} and \texttt{ca-CondMat}, the densest tile
-  holds approximately 5.9--7.3$\times$ the nominal capacity~$\mathcal{C}$.}
+  holds approximately 5.8$\times$ the nominal capacity~$\mathcal{C}$.}
 \label{tab:max-per-tile}
 \centering
 \scriptsize
@@ -631,13 +697,13 @@ for a range of graphs.
 Graph & $|V|$ & $|E|$ & Levels & Max/tile & At level \\
 \midrule
 gameofthrones      &     407 &   2\,639 & 5 &     324 & 4 \\
-composers          &  3\,405 &  13\,832 & 8 &     749 & 3 \\
-ca-GrQc            &  5\,242 &  28\,968 & 8 &     359 & 4 \\
-ca-HepTh           &  9\,877 &  51\,946 & 8 &  1\,836 & 3 \\
-facebook\_combined &  4\,039 &  88\,234 & 9 &     928 & 5 \\
-ca-HepPh           & 12\,008 & 236\,978 & 9 &  3\,643 & 3 \\
-ca-CondMat         & 23\,133 & 186\,878 & 8 &  2\,949 & 3 \\
-deezer\_europe     & 28\,281 &  92\,752 & 8 &  2\,402 & 3 \\
+composers          &  3\,405 &  13\,832 & 8 &     696 & 3 \\
+ca-GrQc            &  5\,242 &  28\,968 & 8 &     304 & 4 \\
+ca-HepTh           &  9\,877 &  51\,946 & 8 &  1\,839 & 3 \\
+facebook\_combined &  4\,039 &  88\,234 & 9 &     961 & 5 \\
+ca-HepPh           & 12\,008 & 236\,978 & 9 &  2\,916 & 3 \\
+ca-CondMat         & 23\,133 & 186\,878 & 8 &  2\,920 & 3 \\
+deezer\_europe     & 28\,281 &  92\,752 & 8 &  2\,395 & 3 \\
 delaunay\_n15      & 32\,768 &  98\,274 & 8 &     283 & 7 \\
 \bottomrule
 \end{tabular}
@@ -830,12 +896,12 @@ result.
 \section{Experimental Results}
 \label{sec:experiments}
 
-We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. The loading and routing-mode experiments run in headless Chrome~148 on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. Layout uses IPSep-CoLa, and the loading benchmark builds the tile pyramid with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
+We evaluate the sleeve router and the tile-pyramid build on the same benchmark graphs as Table~\ref{tab:max-per-tile}: the Game of Thrones social network~\cite{beveridge2018game}, the GD~2011 contest \texttt{composers} graph~\cite{composers}, four SNAP collaboration networks (\texttt{ca-GrQc}, \texttt{ca-HepTh}, \texttt{ca-HepPh}, \texttt{ca-CondMat}) and the SNAP \texttt{facebook\_combined} ego network~\cite{leskovec2007graph,fb}, the \texttt{deezer\_europe} social network~\cite{feather}, and the SuiteSparse Delaunay mesh \texttt{delaunay\_n15}. The loading experiments run in Chrome~153, and the routing-mode experiments in Chrome~148, on an Apple~M4~Max laptop with 48\,GB of unified memory, with the unmodified browser bundle of \msagljs{} loaded into the page. The benchmarks lay out the graphs with Pivot MDS, and the loading benchmark builds the tile pyramid with the same parameters as Table~\ref{tab:max-per-tile}: capacity~$\mathcal{C}=500$, with $Z$ chosen by the natural stops of Section~\ref{sec:tiling}.
 
 Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{Routing}, the sum of the two phases logged by the sleeve router on the full graph---constrained Delaunay triangulation of the obstacles and the Dijkstra-tree search on the CDT dual, Section~\ref{sec:sleeve}; \emph{Tiling}, the build of the tile pyramid, Section~\ref{sec:tiling}, which includes the per-level routing; and \emph{Total}, the end-to-end loading time including parsing.
 
 \begin{table}[t]
-  \caption{End-to-end loading benchmarks in headless Chrome~148 on an
+  \caption{End-to-end loading benchmarks in Chrome~153 on an
     Apple~M4~Max laptop, all times in seconds. Measurements come from
     the \texttt{chrome-routing-bench} example, which runs the
     unmodified browser bundle of \msagljs{}. \emph{Routing} sums the
@@ -854,22 +920,22 @@ Table~\ref{tab:perf} reports per-graph timings of three pipeline stages: \emph{R
     \toprule
     Graph & $|V|$ & $|E|$ & Routing & Tiling & Total \\
     \midrule
-    gameofthrones      &     407 &   2\,639 &   0.07 &   0.07 &   0.38 \\
-    composers          &  3\,405 &  13\,832 &   1.49 &   0.74 &   2.69 \\
-    ca-GrQc            &  5\,242 &  28\,968 &   1.78 &   0.87 &   3.40 \\
-    facebook\_combined &  4\,039 &  88\,234 &   4.34 &   2.36 &   7.77 \\
-    ca-HepTh           &  9\,877 &  51\,946 &   9.33 &   3.41 &  14.87 \\
-    ca-HepPh           & 12\,008 & 236\,978 &  38.89 &  14.08 &  57.71 \\
-    ca-CondMat         & 23\,133 & 186\,878 &  79.72 &  20.52 & 110.06 \\
-    deezer\_europe     & 28\,281 &  92\,752 & 134.78 &  23.09 & 172.68 \\
-    delaunay\_n15      & 32\,768 &  98\,274 &  18.71 &   5.64 &  41.38 \\
+    gameofthrones      &     407 &   2\,639 &   0.07 &   0.05 &   0.38 \\
+    composers          &  3\,405 &  13\,832 &   1.63 &   0.70 &   2.85 \\
+    ca-GrQc            &  5\,242 &  28\,968 &   1.85 &   0.81 &   3.43 \\
+    facebook\_combined &  4\,039 &  88\,234 &   4.51 &   2.12 &   7.75 \\
+    ca-HepTh           &  9\,877 &  51\,946 &   9.77 &   3.14 &  15.22 \\
+    ca-HepPh           & 12\,008 & 236\,978 &  36.84 &  12.74 &  54.67 \\
+    ca-CondMat         & 23\,133 & 186\,878 &  80.36 &  19.84 & 112.43 \\
+    deezer\_europe     & 28\,281 &  92\,752 & 129.62 &  23.19 & 169.28 \\
+    delaunay\_n15      & 32\,768 &  98\,274 &  15.93 &   5.20 &  40.02 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-CDT construction takes about 6\,ms on Game of Thrones and at most
-420\,ms in this benchmark. It accounts for about $8\,\%$ of
-\emph{Routing} on Game of Thrones and at most $6.4\,\%$ on the other
+CDT construction takes about 5\,ms on Game of Thrones and at most
+408\,ms in this benchmark. It accounts for about $7\,\%$ of
+\emph{Routing} on Game of Thrones and at most $6.3\,\%$ on the other
 graphs. The remaining time is spent in the routing pass, which
 includes sleeve search and path extraction, with the vertex-cover
 heuristic of Section~\ref{sec:sleeve} reducing the number of trees.
@@ -896,7 +962,7 @@ plausible explanations, not separately measured causes.
 
 \begin{table}[t]
   \caption{Sleeve-search times of the three routing modes on the
-    benchmark graphs of Table~\ref{tab:perf}, in headless
+    benchmark graphs of Table~\ref{tab:perf}, in
     Chrome~148. Columns: \emph{Srcs}, the number of distinct source
     endpoints in the original edge orientation, used to group DJ
     queries (A* still searches per edge); \emph{VC}, the number of
@@ -1046,7 +1112,7 @@ but layout, routing, and graph storage would still limit graph size.
 A second challenge is that some tiles can contain many more
 elements than the capacity parameter~$\mathcal{C}$ that guides the
 build. Table~\ref{tab:max-per-tile} reports densest tiles holding
-approximately 5.9--7.3$\times$ the nominal $\mathcal{C}$ in the worst cases, which leaves
+approximately 5.8$\times$ the nominal $\mathcal{C}$ in the worst cases, which leaves
 the rendering and interaction cost uneven across the viewport.
 Enforcing an actual per-tile budget remains an open problem.
 
