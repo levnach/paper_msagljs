@@ -525,8 +525,11 @@ one cell. Each
 box then extends at most half a cell side from its center, so the
 centers of two overlapping boxes lie less than one cell side apart on
 each axis, and their cells are identical or adjacent. A box
-registered two or more cells away cannot intersect the candidate. Testing a candidate reduces to nine
-hash-table queries.
+registered two or more cells away cannot intersect the candidate. Testing a candidate therefore takes at most nine
+hash-table queries---one for its own cell and one for each of the
+eight neighbors---each followed by an overlap check against the
+boxes stored in the retrieved cell; the test stops as soon as the
+candidate is rejected.
 
 \begin{figure}[tb]
   \centering
